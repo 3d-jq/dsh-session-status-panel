@@ -175,7 +175,6 @@ function makeFixture(state) {
     useProjection: (key) => {
       if (key === 'todos') return todos;
       if (key === 'goal') return goal;
-      if (key === 'plan') return { active: true, pending: false };
       if (key === 'subagentCatalog') {
         return state.withAgents
           ? [

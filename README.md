@@ -30,7 +30,7 @@
 - **收起态胶囊**：按固定优先级取第一个可用项作摘要——
   当前待办 → 未完成目标 → 已完成目标 → 最近完成的待办 → 后台运行数。
   悬停时主图标切换成"展开"图标（ZCode 同款）。
-- **七个分区**（顺序对齐 ZCode）：`更改`(git) → `目标` → `计划` → `进程` → `后台` → `工作流` → `智能体`。
+- **五个分区**（ZCode 的可读子集）：`目标` → `进程` → `后台` → `工作流` → `智能体`。
   **没有内容的分区不渲染**，也不显示空状态文案。
   `后台` / `工作流` / `智能体` **默认收起**（ZCode 行为），标题栏的尾随计数让你不展开也知道数量。
 - **展开策略菜单**：面板标题栏的 `⋯` 提供三态——自动（默认，每次打开为收起态）/ 始终展开 / 始终收起，选择持久化到 localStorage。（ZCode 只发了一个「自动展开」项，这里把它原本设计的三态补全。）
@@ -77,7 +77,6 @@ dsh plugin --profile <profile> add link:/绝对路径/dsh-session-status-panel
 | 后台 / 工作流行 | 展开 / 收起该任务的实时输出（无输出且非运行中的行不可点） |
 | 进程折叠行 | 点击就地展开该组；悬停弹预览卡 |
 | 目标分区 | 暂停 / 继续 / 清除目标 |
-| 更改分区 | 刷新按钮重新读取 git 状态 |
 | 智能体行 | 在右侧栏打开该子会话页签 |
 
 默认（「自动」）下：展开 / 收起与分区折叠是组件内局部状态，刷新后回到收起态；
@@ -89,28 +88,18 @@ dsh plugin --profile <profile> add link:/绝对路径/dsh-session-status-panel
 
 | 分区 | 来源 | 形状 |
 |---|---|---|
-| 更改 | **本包宿主半区**的只读路由 `GET /dsh-session-status-panel/git?sessionId=…` | `{ isRepository, branch, ahead, behind, dirtyCount, added, removed }` |
 | 目标 | `useProjection('goal')` + 动作走 `ctx.remote.goals` | 嵌套：`{ goal: { objective, phase, maxGoalRounds, blockedReason? }, roundsStarted, createdAt, updatedAt }`；`phase` 为 `active \| paused \| blocked \| complete`；动作 `pause/resume/clear(sessionId, ref)` |
-| 计划 | `useProjection('plan')` | `{ active, pending? }`——只有 plan-mode 开合，DSH 没有 ZCode 那种 ExitPlanMode 记录投影 |
 | 进程 | `useProjection('todos')` | `TodoItem[] \| null`，`{ content, status: pending \| in_progress \| completed }` |
 | 后台 / 工作流 | 客户端 `jobs` 服务（按 `kind` 拆分） | `state.getSnapshot()` / `watchRows(sessionId)` / `observe(sessionId, id)` / `kill(sessionId, id)`；`JobView = { id, kind, label, status, progress?, startedAt, finishedAt?, output }` |
 | 智能体 | `useProjection('subagentCatalog')` | `{ id, createdAt, mode: one-shot \| continuable \| unknown, label? }`——**只有身份，没有运行状态**，所以面板不显示状态 |
 
-## 宿主半区（更改分区的数据来源）
+## 宿主半区
 
-客户端拿不到 git 数据，所以 `index.js` 注册一个**只读**路由：
+`index.js` 目前是**空壳**：面板要用的一切都来自 DSH 已有的会话投影与客户端服务，不需要宿主侧数据通道。
 
-`GET /dsh-session-status-panel/git?sessionId=<id>` →
-用 `ctx.shell` 在该会话的工作目录跑
-`git status --porcelain=v2 --branch; echo <标记>; git diff HEAD --numstat`，
-解析成 `{ isRepository, branch, ahead, behind, dirtyCount, added, removed }`。
-
-安全（与 `dsh-whale-widget` 同一套做法）：
-
-- 只接受 `GET`；非 git 仓库如实返回 `isRepository: false`，不猜；
-- 自带 **回环 Host / 同源 Origin / `sec-fetch-site`** 校验，任何解析异常一律拒绝（fail-closed）；
-- 命令是只读的（`status` / `diff`），带 5s 超时与 256 KiB stdout 上限；
-- 客户端在**展开面板时**才懒加载，收起态不打这个路由。
+（历史上它注册过一个只读 git 状态路由，供已被移除的 `更改` 分区使用；路由一并删掉了——
+不留没有消费者的网络端点。将来若要加需要宿主数据的区块，入口就在 `index.js`：
+`ctx.webServer.register({ kind: 'exact', path, handler })`，并记得路由自带信任校验。）
 
 ## 实现约定
 
@@ -141,9 +130,11 @@ dsh plugin --profile <profile> add link:/绝对路径/dsh-session-status-panel
   DSH 侧没有对应的目录页签可开。
 - **折叠预览卡是自绘的**：ZCode 用 Radix HoverCard（portal + 定位），这里用 `position: fixed`
   自绘（面板 `overflow: hidden` 会裁掉 absolute 子元素），没有 portal。
-- 面板位置固定右上角，不可拖拽；`更改` 分区需要**宿主半区**（老版本只装客户端那半会显示读取失败）。
+- 面板位置固定右上角，不可拖拽。
 - 胶囊优先级链比 ZCode 少三支：git 更改、计划计数、已结束工作流（对应数据 DSH 侧缺失或未接）。
 - 图标是内联 SVG（未照抄宿主 `ui-primitives` 的 path，笔画略有差异）。
+- **已按用户要求移除**：ZCode 的 `Git 工具`（更改）分区与 `计划` 分区。移除 git 分区的同时
+  删掉了宿主半区的只读路由，所以本插件现在**不需要重启 DSH** 就能随刷新更新（宿主半区是空壳）。
 
 ## 许可与归属
 

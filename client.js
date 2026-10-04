@@ -32,11 +32,6 @@ window.__ModuleLoader__.load({
       'section.background': '后台',
       'section.agents': '智能体',
       'section.workflow': '工作流',
-      'section.plan': '计划',
-      'section.changes': '更改',
-      'plan.active': '计划模式已开启',
-      'plan.pending': '计划模式待生效',
-      'plan.inactive': '未在计划模式',
       'goal.pause': '暂停目标',
       'goal.resume': '继续目标',
       'goal.clear': '清除目标',
@@ -48,15 +43,6 @@ window.__ModuleLoader__.load({
       'job.stop': '停止任务 {label}',
       'job.stop.short': '停止',
       'job.killFailed': '停止失败：{error}',
-      'git.loading': '读取中…',
-      'git.unavailable': '不是 git 仓库或 git 不可用',
-      'git.clean': '工作区干净',
-      'git.dirty': '{count} 个文件有改动',
-      'git.ahead': '领先 {count}',
-      'git.behind': '落后 {count}',
-      'git.refresh': '刷新 git 状态',
-      'git.error': 'git 状态读取失败：{error}',
-      'git.hostMissing': '宿主半区未加载（DSH 启动时才会读宿主 JS）——重启 DSH 后生效',
       'goal.untitled': '未命名目标',
       'goal.round': '第 {started} / {max} 轮',
       'goal.status.active': '进行中',
@@ -103,11 +89,6 @@ window.__ModuleLoader__.load({
       'section.background': 'Background',
       'section.agents': 'Agents',
       'section.workflow': 'Workflows',
-      'section.plan': 'Plan',
-      'section.changes': 'Changes',
-      'plan.active': 'Plan mode on',
-      'plan.pending': 'Plan mode pending',
-      'plan.inactive': 'Not in plan mode',
       'goal.pause': 'Pause goal',
       'goal.resume': 'Resume goal',
       'goal.clear': 'Clear goal',
@@ -119,15 +100,6 @@ window.__ModuleLoader__.load({
       'job.stop': 'Stop task {label}',
       'job.stop.short': 'Stop',
       'job.killFailed': 'Stop failed: {error}',
-      'git.loading': 'Loading…',
-      'git.unavailable': 'Not a git repository, or git is unavailable',
-      'git.clean': 'working tree clean',
-      'git.dirty': '{count} changed files',
-      'git.ahead': '{count} ahead',
-      'git.behind': '{count} behind',
-      'git.refresh': 'Refresh git status',
-      'git.error': 'Git status failed: {error}',
-      'git.hostMissing': 'Host half not loaded (DSH reads host JS only at startup) — restart DSH',
       'goal.untitled': 'Untitled goal',
       'goal.round': 'Round {started} / {max}',
       'goal.status.active': 'active',
@@ -332,20 +304,6 @@ window.__ModuleLoader__.load({
       h('circle', { key: '2', cx: 12, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
       h('circle', { key: '3', cx: 19, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
     ]);
-    /** 更改（git）：分叉 + 提交点。 */
-    const ChangesIcon = glyph([
-      h('circle', { key: 'a', cx: 6, cy: 6, r: 2.5 }),
-      h('circle', { key: 'b', cx: 6, cy: 18, r: 2.5 }),
-      h('path', { key: 'l', d: 'M6 8.5v7' }),
-      h('circle', { key: 'c', cx: 18, cy: 12, r: 2.5 }),
-      h('path', { key: 'm', d: 'M8.5 15.5C13 15.5 18 15 18 14.5' }),
-    ]);
-    /** 计划模式。 */
-    const PlanIcon = glyph([
-      h('rect', { key: 'r', x: 4, y: 4, width: 16, height: 16, rx: 2 }),
-      h('path', { key: 'l1', d: 'M8 9h8' }),
-      h('path', { key: 'l2', d: 'M8 13h5' }),
-    ]);
     /** 工作流：分支节点。 */
     const WorkflowIcon = glyph([
       h('rect', { key: 'a', x: 3, y: 3, width: 6, height: 6, rx: 1.5 }),
@@ -359,10 +317,6 @@ window.__ModuleLoader__.load({
       h('path', { key: '2', d: 'M15 5v14' }),
     ]);
     const PlayIcon = glyph([h('path', { key: 'p', d: 'M7 5l12 7-12 7z' })]);
-    const RefreshIcon = glyph([
-      h('path', { key: 'a', d: 'M20 11a8 8 0 1 0-2.3 5.7' }),
-      h('path', { key: 'b', d: 'M20 5v6h-6' }),
-    ]);
 
     // -------------------------------------------------------------- 数据派生
     /**
@@ -1513,11 +1467,9 @@ window.__ModuleLoader__.load({
       );
     }
 
-    // ------------------------------------------------------ 计划 / 更改 / 菜单
+    // ------------------------------------------------------ 目标动作与展开策略
     /** 客户端 `remote.goals` 面（暂停/继续/清除）。缺失时目标分区只剩只读展示。 */
     let goalsFace = null;
-    /** 宿主半区注册的只读 git 路由（见 index.js）。 */
-    const GIT_ROUTE = '/dsh-session-status-panel/git';
     /** 展开策略在 localStorage 的键。 */
     const MODE_KEY = 'dsh-session-status-panel:display-mode';
 
@@ -1537,142 +1489,6 @@ window.__ModuleLoader__.load({
       } catch (error) {
         /* 无 localStorage 时静默降级为会话内状态 */
       }
-    }
-
-    /** 「计划」分区：DSH 只有 plan-mode 的开合状态（ZCode 那套 ExitPlanMode 记录在 DSH 没有对应投影）。 */
-    function PlanModeSection(props) {
-      const T = props.T;
-      const plan = props.plan;
-      const effective = Boolean(plan && (plan.pending ? !plan.active : plan.active));
-      const stateKey = !plan ? 'plan.inactive' : effective ? 'plan.active' : plan.pending ? 'plan.pending' : 'plan.inactive';
-      const color = effective ? TOKEN.brand : TOKEN.muted;
-      return h(
-        Section,
-        {
-          id: 'planMode',
-          title: T('section.plan'),
-          icon: PlanIcon,
-          defaultOpen: true,
-          separated: props.separated,
-        },
-        h(
-          'div',
-          {
-            'data-plan-mode': stateKey,
-            style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8 },
-          },
-          h('span', { style: { display: 'flex', color: color } }, h(PlanIcon, { size: 14 })),
-          h('span', { style: Object.assign({}, rowTextStyle, { color: color }) }, T(stateKey)),
-        ),
-      );
-    }
-
-    /**
-     * 更改（git）分区。数据不由客户端推导，而是取本包**宿主半区**注册的只读路由
-     * `GET /dsh-session-status-panel/git?sessionId=…`（宿主用 ctx.shell 跑 git status）。
-     * 路由不可用时不渲染该分区（旧版宿主半区 / 被信任栅栏拒绝 / 非 git 仓库）。
-     */
-    function GitSection(props) {
-      const T = props.T;
-      const git = props.git || {};
-      const [hover, setHover] = useState(false);
-      const data = git.data || null;
-      const error = git.error || null;
-
-      let rows = null;
-      if (error) {
-        rows = h('div', { 'data-git-error': error, style: { padding: '6px 8px', color: TOKEN.error, fontSize: FONT_SMALL } }, T('git.error', { error: error }));
-      } else if (git.state === 'host-missing') {
-        rows = h(
-          'div',
-          { 'data-git-host-missing': 'true', style: Object.assign({}, metaTextStyle, { padding: '6px 8px' }) },
-          T('git.hostMissing'),
-        );
-      } else if (!data) {
-        rows = h('div', { style: Object.assign({}, metaTextStyle, { padding: '6px 8px' }) }, T('git.loading'));
-      } else if (!data.isRepository) {
-        rows = h('div', { 'data-git-repository': 'false', style: Object.assign({}, metaTextStyle, { padding: '6px 8px' }) }, T('git.unavailable'));
-      } else {
-        const changeWord = data.dirtyCount > 0 ? T('git.dirty', { count: data.dirtyCount }) : T('git.clean');
-        rows = h(
-          'div',
-          { style: { display: 'flex', flexDirection: 'column' } },
-          h(
-            'div',
-            { 'data-git-branch': data.branch || '', style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8 } },
-            h('span', { style: { display: 'flex', color: TOKEN.muted } }, h(ChangesIcon, { size: 14 })),
-            h(
-              'span',
-              { style: Object.assign({}, rowTextStyle, { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) },
-              data.branch ? T('git.branch', { branch: data.branch }) : changeWord,
-            ),
-            data.ahead > 0 ? h('span', { style: Object.assign({}, metaTextStyle, { flex: 'none' }) }, T('git.ahead', { count: data.ahead })) : null,
-            data.behind > 0 ? h('span', { style: Object.assign({}, metaTextStyle, { flex: 'none' }) }, T('git.behind', { count: data.behind })) : null,
-          ),
-          h(
-            'div',
-            { 'data-git-changes': String(data.dirtyCount), style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8 } },
-            h(
-              'span',
-              { style: Object.assign({}, rowTextStyle, { color: data.dirtyCount > 0 ? TOKEN.text : TOKEN.muted }) },
-              changeWord,
-            ),
-            data.added + data.removed > 0
-              ? h(
-                  'span',
-                  { style: Object.assign({}, metaTextStyle, { flex: 'none', display: 'inline-flex', gap: 6 }) },
-                  h('span', { style: { color: TOKEN.success } }, '+' + data.added),
-                  h('span', { style: { color: TOKEN.error } }, '-' + data.removed),
-                )
-              : null,
-          ),
-        );
-      }
-
-      return h(
-        Section,
-        {
-          id: 'changes',
-          title: T('section.changes'),
-          icon: ChangesIcon,
-          defaultOpen: true,
-          separated: props.separated,
-          trailing: h(
-            'button',
-            {
-              type: 'button',
-              'data-git-refresh': 'true',
-              'aria-label': T('git.refresh'),
-              title: T('git.refresh'),
-              onClick: function (event) {
-                event.stopPropagation();
-                props.onRefresh();
-              },
-              onMouseEnter: function () {
-                setHover(true);
-              },
-              onMouseLeave: function () {
-                setHover(false);
-              },
-              style: {
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 22,
-                height: 22,
-                padding: 0,
-                border: 0,
-                borderRadius: 6,
-                background: hover ? TOKEN.hover : 'transparent',
-                color: TOKEN.muted,
-                cursor: 'pointer',
-              },
-            },
-            h(RefreshIcon, { size: 13 }),
-          ),
-        },
-        rows,
-      );
     }
 
     /**
@@ -1870,7 +1686,6 @@ window.__ModuleLoader__.load({
       );
       const jobsState = useJobsState(props.sessionId);
       const jobs = jobsState.rows;
-      const planProjection = useProjection('plan');
       const liveJobCount = jobs.filter(function (job) {
         return jobIsLive(job.status);
       }).length;
@@ -1884,7 +1699,6 @@ window.__ModuleLoader__.load({
       const [mode, setMode] = useState(readDisplayMode);
       const [collapsed, setCollapsed] = useState(readDisplayMode() !== 'expanded');
       const [capsuleHover, setCapsuleHover] = useState(false);
-      const [git, setGit] = useState({ state: 'idle', data: null, error: null });
 
       const changeMode = useCallback(function (next) {
         setMode(next);
@@ -1892,34 +1706,6 @@ window.__ModuleLoader__.load({
         if (next === 'expanded') setCollapsed(false);
         if (next === 'collapsed') setCollapsed(true);
       }, []);
-
-      const loadGit = useCallback(
-        function () {
-          const sessionId = props.sessionId;
-          if (!sessionId) return;
-          setGit(function (current) {
-            return { state: 'loading', data: current.data, error: null };
-          });
-          // 只读路由由本包宿主半区注册；同源 fetch 会带上页面自身的连接鉴权。
-          fetch(GIT_ROUTE + '?sessionId=' + encodeURIComponent(sessionId), { headers: { accept: 'application/json' } })
-            .then(function (response) {
-              if (response.status === 404) {
-                // 宿主半区只在 DSH 启动时读一次；路由不存在 = 宿主那半还是旧代码。
-                // 这不是错误，是部署时序，如实告诉用户怎么让它生效。
-                setGit({ state: 'host-missing', data: null, error: null });
-                return undefined;
-              }
-              if (!response.ok) throw new Error('HTTP ' + response.status);
-              return response.json().then(function (data) {
-                setGit({ state: 'ok', data: data, error: null });
-              });
-            })
-            .catch(function (error) {
-              setGit({ state: 'error', data: null, error: String((error && error.message) || error) });
-            });
-        },
-        [props.sessionId],
-      );
 
       const collapse = useCallback(function () {
         setCollapsed(true);
@@ -1962,24 +1748,10 @@ window.__ModuleLoader__.load({
 
       const hasContent = Boolean(metric);
       const hasPanelContent =
-        Boolean(goal) ||
-        todos.length > 0 ||
-        jobs.length > 0 ||
-        agents.length > 0 ||
-        planProjection !== undefined ||
-        git.data !== null ||
-        git.state === 'host-missing';
+        Boolean(goal) || todos.length > 0 || jobs.length > 0 || agents.length > 0;
 
       /** 展开策略三态：auto 用本地状态；expanded / collapsed 覆盖它。 */
       const isCollapsed = mode === 'expanded' ? false : mode === 'collapsed' ? true : collapsed;
-
-      // 展开时才懒加载 git 状态（收起态不打宿主的只读路由）。effect 必须在任何提前 return 之前。
-      useEffect(
-        function () {
-          if (!isCollapsed && git.state === 'idle') loadGit();
-        },
-        [isCollapsed, git.state, loadGit],
-      );
 
       if (!hasContent && !hasPanelContent) return null;
 
@@ -2142,15 +1914,8 @@ window.__ModuleLoader__.load({
                 padding: '6px 12px 6px 6px',
               },
             },
-            // ZCode 的分区顺序：更改(环境) → 目标 → 计划 → 进程 → 后台(终端) → 工作流 → 智能体。
+            // 分区顺序：目标 → 进程 → 后台(终端) → 工作流 → 智能体。
             // separated 逐个累加：只有"前一个分区真的渲染了"才画那条分隔线。
-            git.data || git.error || git.state === 'host-missing'
-              ? h(
-                  PanelErrorBoundary,
-                  { label: 'changes' },
-                  h(GitSection, { T: T, git: git, onRefresh: loadGit, separated: false }),
-                )
-              : null,
             goal
               ? h(
                   PanelErrorBoundary,
@@ -2159,18 +1924,7 @@ window.__ModuleLoader__.load({
                     T: T,
                     goal: goal,
                     sessionId: props.sessionId,
-                    separated: Boolean(git.data || git.error || git.state === 'host-missing'),
-                  }),
-                )
-              : null,
-            planProjection !== undefined
-              ? h(
-                  PanelErrorBoundary,
-                  { label: 'plan' },
-                  h(PlanModeSection, {
-                    T: T,
-                    plan: planProjection,
-                    separated: Boolean(git.data || git.error || git.state === 'host-missing' || goal),
+                    separated: false,
                   }),
                 )
               : null,
@@ -2181,9 +1935,7 @@ window.__ModuleLoader__.load({
                   h(ProgressSection, {
                     T: T,
                     todos: todos,
-                    separated: Boolean(
-                      git.data || git.error || git.state === 'host-missing' || goal || planProjection !== undefined,
-                    ),
+                    separated: Boolean(goal),
                   }),
                 )
               : null,
@@ -2200,9 +1952,7 @@ window.__ModuleLoader__.load({
                     sessionId: props.sessionId,
                     // ZCode：终端分区默认收起。
                     defaultOpen: false,
-                    separated: Boolean(
-                      git.data || git.error || goal || planProjection !== undefined || todos.length > 0,
-                    ),
+                    separated: Boolean(goal || todos.length > 0),
                   }),
                 )
               : null,
@@ -2220,14 +1970,7 @@ window.__ModuleLoader__.load({
                     sessionId: props.sessionId,
                     // ZCode：工作流分区默认收起。
                     defaultOpen: false,
-                    separated: Boolean(
-                      git.data ||
-                        git.error ||
-                        goal ||
-                        planProjection !== undefined ||
-                        todos.length > 0 ||
-                        backgroundJobs.length > 0,
-                    ),
+                    separated: Boolean(goal || todos.length > 0 || backgroundJobs.length > 0),
                   }),
                 )
               : null,
@@ -2241,14 +1984,7 @@ window.__ModuleLoader__.load({
                     parentSessionId: props.sessionId,
                     // ZCode：智能体分区默认收起。
                     defaultOpen: false,
-                    separated: Boolean(
-                      git.data ||
-                        git.error ||
-                        goal ||
-                        planProjection !== undefined ||
-                        todos.length > 0 ||
-                        jobs.length > 0,
-                    ),
+                    separated: Boolean(goal || todos.length > 0 || jobs.length > 0),
                   }),
                 )
               : null,
