@@ -1,0 +1,3 @@
+- insert:
+    - id: session-status-panel
+      name: dsh-session-status-panel

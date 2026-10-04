@@ -1,0 +1,60 @@
+{
+  "name": "dsh-session-status-panel",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "description": "DSH Web 会话状态面板：收起态单行胶囊，展开态「目标 / 进程 / 后台 / 智能体」四分区；后台可展开实时输出，智能体可打开子会话。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "status-panel",
+    "widget",
+    "todos",
+    "subagents"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/3d-jq/dsh-session-status-panel.git"
+  },
+  "homepage": "https://github.com/3d-jq/dsh-session-status-panel#readme",
+  "bugs": {
+    "url": "https://github.com/3d-jq/dsh-session-status-panel/issues"
+  },
+  "main": "index.js",
+  "scripts": {
+    "check": "node --check client.js && node --check index.js && node scripts/check-identifiers.mjs && node scripts/render-probe.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "NOTICE.md",
+    "LICENSE",
+    "icon.svg"
+  ],
+  "meta": {
+    "title": "会话状态面板",
+    "description": "会话状态胶囊 + 分区面板：目标、进程（待办）、后台任务（可展开实时输出）、智能体（可打开子会话）。"
+  },
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}

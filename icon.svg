@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Session status panel">
+  <rect x="6" y="10" width="52" height="44" rx="10" fill="none" stroke="currentColor" stroke-width="3.5"/>
+  <circle cx="18" cy="24" r="3.5" fill="currentColor"/>
+  <path d="M27 24h20" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M15 33l3 3 5-6" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M27 35h20" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="18" cy="45" r="3.5" fill="none" stroke="currentColor" stroke-width="3"/>
+  <path d="M27 45h14" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+</svg>
