@@ -18,6 +18,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(resolve(here, '../client.js'), 'utf8');
 
 let forcedStates = [];
+/**
+ * 展开态那轮把「布尔初值」一律当作 true：这样默认收起的分区（后台/工作流/智能体，
+ * ZCode 行为）也会渲染出它们的行。否则探针不点击就永远走不到 JobRow/SubagentRow，
+ * 而停止按钮正好在那两行里。
+ */
+let forceBooleanTrue = false;
 const resolveInitial = (init) => (typeof init === 'function' ? init() : init);
 const React = {
   createElement(type, props, ...children) {
@@ -36,7 +42,10 @@ const React = {
   },
   useState(init) {
     const forced = forcedStates.shift();
-    return [forced === undefined ? resolveInitial(init) : forced, () => {}];
+    if (forced !== undefined) return [forced, () => {}];
+    const resolved = resolveInitial(init);
+    if (forceBooleanTrue && typeof resolved === 'boolean') return [true, () => {}];
+    return [resolved, () => {}];
   },
   useEffect() {},
   useMemo(fn) {
@@ -44,6 +53,9 @@ const React = {
   },
   useCallback(fn) {
     return fn;
+  },
+  useRef(initial) {
+    return { current: initial };
   },
 };
 
@@ -86,6 +98,16 @@ function applyWith(withJobs) {
         jobs: makeJobsFace(),
         sidebarRight: { openResource: () => {} },
         locale: { register: () => () => {} },
+        // 目标动作面（ui-goal 用的同一个 remote.goals）；缺它时目标分区只剩只读展示。
+        remote: {
+          goals: {
+            get: async () => undefined,
+            pause: async () => undefined,
+            resume: async () => undefined,
+            clear: async () => undefined,
+          },
+        },
+        get: () => undefined,
         effect: (fn) => {
           fn();
           return () => {};
@@ -153,6 +175,7 @@ function makeFixture(state) {
     useProjection: (key) => {
       if (key === 'todos') return todos;
       if (key === 'goal') return goal;
+      if (key === 'plan') return { active: true, pending: false };
       if (key === 'subagentCatalog') {
         return state.withAgents
           ? [
@@ -211,9 +234,11 @@ function render(element, path, fixture) {
 
 for (const state of matrix) {
   applyWith(state.withJobs);
-  // StatusPanelBody 的 useState 顺序：useJobsState 的 snapshot → collapsed。
-  // 要展开态就得给第 2 个塞 false；只塞一个值会被前者吃掉，探针就停在胶囊态。
-  forcedStates = state.collapsed ? [] : [undefined, false];
+  // StatusPanelBody 的 useState 顺序：useJobsState 的 snapshot → mode → collapsed。
+  // 要展开态就得给第 3 个塞 false。**这个位置会随实现漂移**，所以下面还有一道
+  // 覆盖面断言：夹具一旦失效，探针直接失败，不再"覆盖面=3 且全部通过"。
+  forcedStates = state.collapsed ? [] : [undefined, undefined, false];
+  forceBooleanTrue = !state.collapsed;
   const fixture = makeFixture(state);
   try {
     render(registered.component(fixture), 'StatusPanel', fixture);
@@ -224,6 +249,16 @@ for (const state of matrix) {
 
 console.log('[render-probe] ' + matrix.length + ' 个状态组合');
 console.log('  组件覆盖面（' + covered.size + '）：' + [...covered].sort().join(', '));
+
+// 覆盖面断言：矩阵覆盖了 收起/展开 × 目标 × 待办 0/3/7 × jobs × agents，
+// 所以这些组件**必须**都被走到。缺任何一个都说明夹具失效（例如 useState 顺序变了），
+// 那种"全绿但只覆盖 3 个组件"的假通过正是它要防的。
+const EXPECTED_COVERAGE = ['StatusPanelBody', 'Section', 'TodoRow', 'FoldRow', 'JobRow', 'SubagentRow', 'GoalSection', 'ProgressSection', 'JobSection', 'SubagentSection'];
+const missingCoverage = EXPECTED_COVERAGE.filter((name) => !covered.has(name));
+if (missingCoverage.length > 0) {
+  problems.push('夹具失效：这些组件没被走到 → ' + missingCoverage.join(', '));
+}
+
 if (problems.length === 0) {
   console.log('  ✅ 无抛出、无无效元素类型');
 } else {

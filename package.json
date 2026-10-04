@@ -1,9 +1,9 @@
 {
   "name": "dsh-session-status-panel",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": false,
   "type": "module",
-  "description": "DSH Web 会话状态面板：收起态单行胶囊，展开态「目标 / 进程 / 后台 / 智能体」四分区；后台可展开实时输出，智能体可打开子会话。",
+  "description": "DSH Web 会话状态面板：收起态单行胶囊，展开态「更改 / 目标 / 计划 / 进程 / 后台 / 工作流 / 智能体」七分区；后台可看实时输出并可停止，智能体可打开子会话。",
   "keywords": [
     "dsh",
     "dsh-plugin",

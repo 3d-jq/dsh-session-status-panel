@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react');
     const h = React.createElement;
-    const { useCallback, useEffect, useMemo, useState } = React;
+    const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
     // ------------------------------------------------------------ 文案字典
     /** locale 命名空间（本包自有）。 */
@@ -31,6 +31,32 @@ window.__ModuleLoader__.load({
       'section.progress': '进程',
       'section.background': '后台',
       'section.agents': '智能体',
+      'section.workflow': '工作流',
+      'section.plan': '计划',
+      'section.changes': '更改',
+      'plan.active': '计划模式已开启',
+      'plan.pending': '计划模式待生效',
+      'plan.inactive': '未在计划模式',
+      'goal.pause': '暂停目标',
+      'goal.resume': '继续目标',
+      'goal.clear': '清除目标',
+      'goal.actionFailed': '目标操作失败：{error}',
+      'panel.mode': '展开策略',
+      'panel.mode.auto': '自动（每次打开为收起态）',
+      'panel.mode.expanded': '始终展开',
+      'panel.mode.collapsed': '始终收起',
+      'job.stop': '停止任务 {label}',
+      'job.stop.short': '停止',
+      'job.killFailed': '停止失败：{error}',
+      'git.loading': '读取中…',
+      'git.unavailable': '不是 git 仓库或 git 不可用',
+      'git.clean': '工作区干净',
+      'git.dirty': '{count} 个文件有改动',
+      'git.ahead': '领先 {count}',
+      'git.behind': '落后 {count}',
+      'git.refresh': '刷新 git 状态',
+      'git.error': 'git 状态读取失败：{error}',
+      'git.hostMissing': '宿主半区未加载（DSH 启动时才会读宿主 JS）——重启 DSH 后生效',
       'goal.untitled': '未命名目标',
       'goal.round': '第 {started} / {max} 轮',
       'goal.status.active': '进行中',
@@ -41,8 +67,10 @@ window.__ModuleLoader__.load({
       'duration.hours': '{hours} 小时',
       'duration.minutes': '{minutes} 分',
       'duration.seconds': '{seconds} 秒',
-      'todo.fold.before': '前面 {count} 项',
-      'todo.fold.after': '后面 {count} 项',
+      'todo.fold.completed': '已完成 {count} 项',
+      'todo.fold.earlier': '前面 {count} 项',
+      'todo.fold.waiting': '待处理 {count} 项',
+      'todo.fold.later': '后面 {count} 项',
       'todo.fold.aria': '展开这 {count} 项',
       'job.status.running': '运行中',
       'job.status.stopping': '停止中',
@@ -74,6 +102,32 @@ window.__ModuleLoader__.load({
       'section.progress': 'Progress',
       'section.background': 'Background',
       'section.agents': 'Agents',
+      'section.workflow': 'Workflows',
+      'section.plan': 'Plan',
+      'section.changes': 'Changes',
+      'plan.active': 'Plan mode on',
+      'plan.pending': 'Plan mode pending',
+      'plan.inactive': 'Not in plan mode',
+      'goal.pause': 'Pause goal',
+      'goal.resume': 'Resume goal',
+      'goal.clear': 'Clear goal',
+      'goal.actionFailed': 'Goal action failed: {error}',
+      'panel.mode': 'Display mode',
+      'panel.mode.auto': 'Auto (collapsed on open)',
+      'panel.mode.expanded': 'Always expanded',
+      'panel.mode.collapsed': 'Always collapsed',
+      'job.stop': 'Stop task {label}',
+      'job.stop.short': 'Stop',
+      'job.killFailed': 'Stop failed: {error}',
+      'git.loading': 'Loading…',
+      'git.unavailable': 'Not a git repository, or git is unavailable',
+      'git.clean': 'working tree clean',
+      'git.dirty': '{count} changed files',
+      'git.ahead': '{count} ahead',
+      'git.behind': '{count} behind',
+      'git.refresh': 'Refresh git status',
+      'git.error': 'Git status failed: {error}',
+      'git.hostMissing': 'Host half not loaded (DSH reads host JS only at startup) — restart DSH',
       'goal.untitled': 'Untitled goal',
       'goal.round': 'Round {started} / {max}',
       'goal.status.active': 'active',
@@ -84,8 +138,10 @@ window.__ModuleLoader__.load({
       'duration.hours': '{hours}h',
       'duration.minutes': '{minutes}m',
       'duration.seconds': '{seconds}s',
-      'todo.fold.before': '{count} earlier',
-      'todo.fold.after': '{count} later',
+      'todo.fold.completed': '{count} completed',
+      'todo.fold.earlier': '{count} earlier',
+      'todo.fold.waiting': '{count} waiting',
+      'todo.fold.later': '{count} later',
       'todo.fold.aria': 'Show these {count} items',
       'job.status.running': 'running',
       'job.status.stopping': 'stopping',
@@ -267,6 +323,45 @@ window.__ModuleLoader__.load({
       h('circle', { key: 'c', cx: 12, cy: 3, r: 1 }),
       h('circle', { key: 'e1', cx: 9.5, cy: 13.5, r: 1 }),
       h('circle', { key: 'e2', cx: 14.5, cy: 13.5, r: 1 }),
+    ]);
+    /** 停止：实心方块（与 ZCode 的 SquareIcon 语义一致）。 */
+    const StopIcon = glyph([h('rect', { key: 'r', x: 6, y: 6, width: 12, height: 12, rx: 2, fill: 'currentColor', stroke: 'none' })]);
+    /** 展开策略菜单的三点。 */
+    const EllipsisIcon = glyph([
+      h('circle', { key: '1', cx: 5, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
+      h('circle', { key: '2', cx: 12, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
+      h('circle', { key: '3', cx: 19, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
+    ]);
+    /** 更改（git）：分叉 + 提交点。 */
+    const ChangesIcon = glyph([
+      h('circle', { key: 'a', cx: 6, cy: 6, r: 2.5 }),
+      h('circle', { key: 'b', cx: 6, cy: 18, r: 2.5 }),
+      h('path', { key: 'l', d: 'M6 8.5v7' }),
+      h('circle', { key: 'c', cx: 18, cy: 12, r: 2.5 }),
+      h('path', { key: 'm', d: 'M8.5 15.5C13 15.5 18 15 18 14.5' }),
+    ]);
+    /** 计划模式。 */
+    const PlanIcon = glyph([
+      h('rect', { key: 'r', x: 4, y: 4, width: 16, height: 16, rx: 2 }),
+      h('path', { key: 'l1', d: 'M8 9h8' }),
+      h('path', { key: 'l2', d: 'M8 13h5' }),
+    ]);
+    /** 工作流：分支节点。 */
+    const WorkflowIcon = glyph([
+      h('rect', { key: 'a', x: 3, y: 3, width: 6, height: 6, rx: 1.5 }),
+      h('rect', { key: 'b', x: 15, y: 15, width: 6, height: 6, rx: 1.5 }),
+      h('rect', { key: 'c', x: 3, y: 15, width: 6, height: 6, rx: 1.5 }),
+      h('path', { key: 'l', d: 'M6 9v6' }),
+      h('path', { key: 'm', d: 'M9 6h6a3 3 0 0 1 3 3v6' }),
+    ]);
+    const PauseIcon = glyph([
+      h('path', { key: '1', d: 'M9 5v14' }),
+      h('path', { key: '2', d: 'M15 5v14' }),
+    ]);
+    const PlayIcon = glyph([h('path', { key: 'p', d: 'M7 5l12 7-12 7z' })]);
+    const RefreshIcon = glyph([
+      h('path', { key: 'a', d: 'M20 11a8 8 0 1 0-2.3 5.7' }),
+      h('path', { key: 'b', d: 'M20 5v6h-6' }),
     ]);
 
     // -------------------------------------------------------------- 数据派生
@@ -523,8 +618,42 @@ window.__ModuleLoader__.load({
       );
     }
 
+    /**
+     * 折叠行：点击就地展开该组；悬停（或键盘聚焦）140ms 后在面板左侧弹出预览卡。
+     * 预览卡用 `position: fixed` —— 面板内容区是滚动容器，absolute 会被裁掉；
+     * 位置由折叠行自己的 getBoundingClientRect 推导（只量自己的 DOM，不碰别人的）。
+     */
     function FoldRow(props) {
       const [hover, setHover] = useState(false);
+      const [anchor, setAnchor] = useState(null);
+      const timer = useRef(null);
+      const clearTimer = function () {
+        if (timer.current) {
+          clearTimeout(timer.current);
+          timer.current = null;
+        }
+      };
+      useEffect(function () {
+        return clearTimer;
+      }, []);
+      const show = function (event) {
+        setHover(true);
+        const items = props.items || [];
+        if (items.length === 0) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        clearTimer();
+        timer.current = setTimeout(function () {
+          setAnchor({
+            top: Math.max(8, Math.min(rect.top - 6, window.innerHeight - 220)),
+            right: Math.max(8, window.innerWidth - rect.left + 10),
+          });
+        }, 140);
+      };
+      const hide = function () {
+        clearTimer();
+        setHover(false);
+        setAnchor(null);
+      };
       return h(
         'li',
         { style: { listStyle: 'none' } },
@@ -533,15 +662,13 @@ window.__ModuleLoader__.load({
           {
             type: 'button',
             'data-todo-fold': props.group,
-            'aria-expanded': false,
+            'aria-expanded': props.expanded === true,
             'aria-label': props.ariaLabel,
             onClick: props.onClick,
-            onMouseEnter: function () {
-              setHover(true);
-            },
-            onMouseLeave: function () {
-              setHover(false);
-            },
+            onMouseEnter: show,
+            onMouseLeave: hide,
+            onFocus: show,
+            onBlur: hide,
             style: Object.assign({}, sectionHeaderStyle, {
               height: 30,
               borderRadius: 8,
@@ -549,9 +676,51 @@ window.__ModuleLoader__.load({
               background: hover ? TOKEN.hover : 'transparent',
             }),
           },
-          h(ChevronLeftIcon, { size: 14 }),
-          h('span', null, props.label),
+          h(props.expanded ? ChevronDownIcon : ChevronLeftIcon, { size: 14 }),
+          h(
+            'span',
+            { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+            props.label,
+          ),
         ),
+        anchor
+          ? h(
+              'div',
+              {
+                'data-todo-preview': props.group,
+                style: {
+                  position: 'fixed',
+                  top: anchor.top,
+                  right: anchor.right,
+                  zIndex: 1101,
+                  width: 264,
+                  maxHeight: 'min(20rem, 60dvh)',
+                  overflowY: 'auto',
+                  scrollbarGutter: 'stable',
+                  boxSizing: 'border-box',
+                  padding: 10,
+                  background: 'var(--dsw-specific-menu, ' + TOKEN.surface + ')',
+                  border: 0,
+                  borderRadius: 'var(--dsw-radius-lg, 12px)',
+                  boxShadow: 'var(--dsw-elevation-prominent, 0 6px 24px rgba(0,0,0,0.18))',
+                  backdropFilter: 'var(--dsw-menu-backdrop-filter, none)',
+                  color: TOKEN.text,
+                },
+              },
+              h(
+                'span',
+                { style: Object.assign({}, metaTextStyle, { display: 'block', marginBottom: 6, padding: '0 2px' }) },
+                props.label,
+              ),
+              h(
+                'ul',
+                { style: { margin: 0, padding: 0, display: 'flex', flexDirection: 'column' } },
+                (props.items || []).map(function (item, index) {
+                  return h(TodoRow, { key: 'p' + index, item: item });
+                }),
+              ),
+            )
+          : null,
       );
     }
 
@@ -650,6 +819,57 @@ window.__ModuleLoader__.load({
       const elapsed = goalElapsedSeconds(goal, now);
       const rounds = goalRounds(goal);
       const snapshot = goalSnapshot(goal);
+      const [actionError, setActionError] = useState(null);
+      /**
+       * 目标动作走客户端 `remote.goals`（ui-goal 用的同一个命名空间）：
+       * `get/pause/resume/clear(sessionId, ref)`，ref = { id, revision }。
+       * 失败只记录在分区内，不抛给渲染（抛了就整块面板被错误边界接住）。
+       */
+      const runGoalAction = function (verb) {
+        if (!goalsFace || !props.sessionId || !snapshot) return;
+        const ref = { id: snapshot.id, revision: snapshot.revision };
+        try {
+          const result = goalsFace[verb](props.sessionId, ref);
+          if (result && typeof result.catch === 'function') {
+            result.catch(function (error) {
+              setActionError(String((error && error.message) || error));
+            });
+          }
+        } catch (error) {
+          setActionError(String((error && error.message) || error));
+        }
+      };
+      const actionButton = function (verb, labelKey, icon) {
+        const enabled = Boolean(goalsFace && props.sessionId);
+        return h(
+          'button',
+          {
+            type: 'button',
+            'data-goal-action': verb,
+            'aria-label': T(labelKey),
+            title: T(labelKey),
+            disabled: !enabled,
+            onClick: function (event) {
+              event.stopPropagation();
+              runGoalAction(verb);
+            },
+            style: {
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 22,
+              height: 22,
+              padding: 0,
+              border: 0,
+              borderRadius: 6,
+              background: 'transparent',
+              color: enabled ? TOKEN.muted : TOKEN.idle,
+              cursor: enabled ? 'pointer' : 'default',
+            },
+          },
+          h(icon, { size: 13 }),
+        );
+      };
       const blocked =
         snapshot && snapshot.blockedReason && typeof snapshot.blockedReason.message === 'string'
           ? snapshot.blockedReason.message
@@ -673,6 +893,9 @@ window.__ModuleLoader__.load({
             ),
             h('span', null, '·'),
             h('span', { 'data-goal-status': phase, style: { color: goalStatusColor(phase) } }, goalStatusWord(T, phase)),
+            phase === 'active' ? actionButton('pause', 'goal.pause', PauseIcon) : null,
+            phase === 'paused' ? actionButton('resume', 'goal.resume', PlayIcon) : null,
+            h('span', { style: { flex: 'none', display: 'inline-flex' } }, actionButton('clear', 'goal.clear', StopIcon)),
           ),
         },
         h(
@@ -735,6 +958,13 @@ window.__ModuleLoader__.load({
               h('span', { style: Object.assign({}, rowTextStyle, { color: TOKEN.warn }) }, blocked),
             )
           : null,
+        actionError
+          ? h(
+              'div',
+              { 'data-goal-error': actionError, style: { padding: '6px 8px', color: TOKEN.error, fontSize: FONT_SMALL, lineHeight: LEAD_SMALL } },
+              T('goal.actionFailed', { error: actionError }),
+            )
+          : null,
       );
     }
 
@@ -742,60 +972,83 @@ window.__ModuleLoader__.load({
       const T = props.T;
       const todos = props.todos;
       const counts = todoCounts(todos);
-      const [showBefore, setShowBefore] = useState(false);
-      const [showAfter, setShowAfter] = useState(false);
+      const [expanded, setExpanded] = useState({});
       const window = todoFocusWindow(todos);
+      const toggle = function (group) {
+        setExpanded(function (current) {
+          const next = Object.assign({}, current);
+          if (next[group]) delete next[group];
+          else next[group] = true;
+          return next;
+        });
+      };
+      const fold = function (group, key, labelKey, items) {
+        return h(FoldRow, {
+          key: key,
+          group: group,
+          expanded: expanded[group] === true,
+          label: T(labelKey, { count: items.length }),
+          ariaLabel: T('todo.fold.aria', { count: items.length }),
+          items: items,
+          onClick: function () {
+            toggle(group);
+          },
+        });
+      };
+      const rowsFor = function (items, prefix) {
+        return items.map(function (item, index) {
+          return h(TodoRow, { key: prefix + index, item: item });
+        });
+      };
 
       let rows = [];
       if (!window) {
-        rows = todos.map(function (item, index) {
-          return h(TodoRow, { key: item.content + '#' + index, item: item });
-        });
+        rows = rowsFor(todos, 'a');
       } else {
         const before = todos.slice(0, window.start);
         const focus = todos.slice(window.start, window.end);
         const after = todos.slice(window.end);
-        rows = [];
-        if (before.length > 0) {
-          if (showBefore) {
-            before.forEach(function (item, index) {
-              rows.push(h(TodoRow, { key: 'b' + index, item: item }));
-            });
-          } else {
-            rows.push(
-              h(FoldRow, {
-                key: 'fold-before',
-                group: 'before',
-                label: T('todo.fold.before', { count: before.length }),
-                ariaLabel: T('todo.fold.aria', { count: before.length }),
-                onClick: function () {
-                  setShowBefore(true);
-                },
-              }),
-            );
-          }
-        }
-        focus.forEach(function (item, index) {
-          rows.push(h(TodoRow, { key: 'f' + index, item: item }));
+        // ZCode 的四种折叠：已完成的、前面其余的、待处理的、后面其余的。
+        const completedBefore = before.filter(function (item) {
+          return item.status === 'completed';
         });
-        if (after.length > 0) {
-          if (showAfter) {
-            after.forEach(function (item, index) {
-              rows.push(h(TodoRow, { key: 'a' + index, item: item }));
-            });
-          } else {
-            rows.push(
-              h(FoldRow, {
-                key: 'fold-after',
-                group: 'after',
-                label: T('todo.fold.after', { count: after.length }),
-                ariaLabel: T('todo.fold.aria', { count: after.length }),
-                onClick: function () {
-                  setShowAfter(true);
-                },
-              }),
-            );
-          }
+        const otherBefore = before.filter(function (item) {
+          return item.status !== 'completed';
+        });
+        const waitingAfter = after.filter(function (item) {
+          return item.status === 'pending';
+        });
+        const otherAfter = after.filter(function (item) {
+          return item.status !== 'pending';
+        });
+        if (completedBefore.length > 0) {
+          rows = rows.concat(
+            expanded['completed-before']
+              ? rowsFor(completedBefore, 'cb')
+              : [fold('completed-before', 'f-cb', 'todo.fold.completed', completedBefore)],
+          );
+        }
+        if (otherBefore.length > 0) {
+          rows = rows.concat(
+            expanded['earlier-before']
+              ? rowsFor(otherBefore, 'eb')
+              : [fold('earlier-before', 'f-eb', 'todo.fold.earlier', otherBefore)],
+          );
+        }
+        rows = rows.concat(rowsFor(focus, 'f'));
+        if (waitingAfter.length > 0) {
+          rows = rows.concat(
+            expanded['waiting-after']
+              ? rowsFor(waitingAfter, 'wa')
+              : [fold('waiting-after', 'f-wa', 'todo.fold.waiting', waitingAfter)],
+          );
+        }
+        if (otherAfter.length > 0) {
+          rows = rows.concat(
+            expanded['later-after']
+              ? rowsFor(otherAfter, 'la')
+              : [fold('later-after', 'f-la', 'todo.fold.later', otherAfter)],
+          );
         }
       }
 
@@ -903,6 +1156,9 @@ window.__ModuleLoader__.load({
       const now = useNowTicker(live);
       // 与宿主同判据：live 的任务、或留下过输出的终态任务，都可以观测。
       const observable = Boolean(jobsFace && sessionId && (live || (job.output && job.output.total > 0)));
+      /** 只有运行中/停止中的任务可以停（ZCode 的 RunningWorkCancelButton 同判据）。 */
+      const canStop = Boolean(jobsFace && sessionId && live);
+      const [stopError, setStopError] = useState(null);
 
       useEffect(
         function () {
@@ -1043,10 +1299,53 @@ window.__ModuleLoader__.load({
           head(),
           observable ? h(ChevronDownIcon, { size: 14 }) : null,
         ),
+        // ZCode 的 RunningWorkCancelButton：只有运行中的后台行才有停止。
+        canStop
+          ? h(
+              'button',
+              {
+                type: 'button',
+                'data-job-stop': job.id,
+                'aria-label': T('job.stop', { label: job.label || job.id }),
+                title: T('job.stop', { label: job.label || job.id }),
+                onClick: function (event) {
+                  event.stopPropagation();
+                  try {
+                    const result = jobsFace.kill(sessionId, job.id);
+                    if (result && typeof result.catch === 'function') {
+                      result.catch(function (error) {
+                        setStopError(String((error && error.message) || error));
+                      });
+                    }
+                  } catch (error) {
+                    setStopError(String((error && error.message) || error));
+                  }
+                },
+                style: Object.assign({}, clickableRowStyle, {
+                  flex: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  width: 'auto',
+                  height: 22,
+                  padding: '0 6px',
+                  fontSize: FONT_SMALL,
+                  color: TOKEN.error,
+                  background: 'transparent',
+                }),
+              },
+              h(StopIcon, { size: 11 }),
+              T('job.stop.short'),
+            )
+          : null,
+        stopError
+          ? h('span', { style: Object.assign({}, metaTextStyle, { color: TOKEN.error }) }, T('job.killFailed', { error: stopError }))
+          : null,
         output,
       );
     }
 
+    /** 后台/工作流分区：同一套行渲染，靠 id/title/icon/defaultOpen 参数化。 */
     function JobSection(props) {
       const T = props.T;
       const jobs = props.jobs;
@@ -1056,10 +1355,10 @@ window.__ModuleLoader__.load({
       return h(
         Section,
         {
-          id: 'background',
-          title: T('section.background'),
-          icon: TerminalIcon,
-          defaultOpen: true,
+          id: props.id || 'background',
+          title: T(props.titleKey || 'section.background'),
+          icon: props.icon || TerminalIcon,
+          defaultOpen: props.defaultOpen === true,
           separated: props.separated,
           trailing: h(
             'span',
@@ -1116,7 +1415,7 @@ window.__ModuleLoader__.load({
           id: 'agents',
           title: T('section.agents'),
           icon: BotIcon,
-          defaultOpen: true,
+          defaultOpen: props.defaultOpen,
           separated: props.separated,
           trailing: h(
             'span',
@@ -1214,6 +1513,278 @@ window.__ModuleLoader__.load({
       );
     }
 
+    // ------------------------------------------------------ 计划 / 更改 / 菜单
+    /** 客户端 `remote.goals` 面（暂停/继续/清除）。缺失时目标分区只剩只读展示。 */
+    let goalsFace = null;
+    /** 宿主半区注册的只读 git 路由（见 index.js）。 */
+    const GIT_ROUTE = '/dsh-session-status-panel/git';
+    /** 展开策略在 localStorage 的键。 */
+    const MODE_KEY = 'dsh-session-status-panel:display-mode';
+
+    function readDisplayMode() {
+      try {
+        const value = window.localStorage.getItem(MODE_KEY);
+        return value === 'expanded' || value === 'collapsed' ? value : 'auto';
+      } catch (error) {
+        return 'auto';
+      }
+    }
+
+    function writeDisplayMode(mode) {
+      try {
+        if (mode === 'auto') window.localStorage.removeItem(MODE_KEY);
+        else window.localStorage.setItem(MODE_KEY, mode);
+      } catch (error) {
+        /* 无 localStorage 时静默降级为会话内状态 */
+      }
+    }
+
+    /** 「计划」分区：DSH 只有 plan-mode 的开合状态（ZCode 那套 ExitPlanMode 记录在 DSH 没有对应投影）。 */
+    function PlanModeSection(props) {
+      const T = props.T;
+      const plan = props.plan;
+      const effective = Boolean(plan && (plan.pending ? !plan.active : plan.active));
+      const stateKey = !plan ? 'plan.inactive' : effective ? 'plan.active' : plan.pending ? 'plan.pending' : 'plan.inactive';
+      const color = effective ? TOKEN.brand : TOKEN.muted;
+      return h(
+        Section,
+        {
+          id: 'planMode',
+          title: T('section.plan'),
+          icon: PlanIcon,
+          defaultOpen: true,
+          separated: props.separated,
+        },
+        h(
+          'div',
+          {
+            'data-plan-mode': stateKey,
+            style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8 },
+          },
+          h('span', { style: { display: 'flex', color: color } }, h(PlanIcon, { size: 14 })),
+          h('span', { style: Object.assign({}, rowTextStyle, { color: color }) }, T(stateKey)),
+        ),
+      );
+    }
+
+    /**
+     * 更改（git）分区。数据不由客户端推导，而是取本包**宿主半区**注册的只读路由
+     * `GET /dsh-session-status-panel/git?sessionId=…`（宿主用 ctx.shell 跑 git status）。
+     * 路由不可用时不渲染该分区（旧版宿主半区 / 被信任栅栏拒绝 / 非 git 仓库）。
+     */
+    function GitSection(props) {
+      const T = props.T;
+      const git = props.git || {};
+      const [hover, setHover] = useState(false);
+      const data = git.data || null;
+      const error = git.error || null;
+
+      let rows = null;
+      if (error) {
+        rows = h('div', { 'data-git-error': error, style: { padding: '6px 8px', color: TOKEN.error, fontSize: FONT_SMALL } }, T('git.error', { error: error }));
+      } else if (git.state === 'host-missing') {
+        rows = h(
+          'div',
+          { 'data-git-host-missing': 'true', style: Object.assign({}, metaTextStyle, { padding: '6px 8px' }) },
+          T('git.hostMissing'),
+        );
+      } else if (!data) {
+        rows = h('div', { style: Object.assign({}, metaTextStyle, { padding: '6px 8px' }) }, T('git.loading'));
+      } else if (!data.isRepository) {
+        rows = h('div', { 'data-git-repository': 'false', style: Object.assign({}, metaTextStyle, { padding: '6px 8px' }) }, T('git.unavailable'));
+      } else {
+        const changeWord = data.dirtyCount > 0 ? T('git.dirty', { count: data.dirtyCount }) : T('git.clean');
+        rows = h(
+          'div',
+          { style: { display: 'flex', flexDirection: 'column' } },
+          h(
+            'div',
+            { 'data-git-branch': data.branch || '', style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8 } },
+            h('span', { style: { display: 'flex', color: TOKEN.muted } }, h(ChangesIcon, { size: 14 })),
+            h(
+              'span',
+              { style: Object.assign({}, rowTextStyle, { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) },
+              data.branch ? T('git.branch', { branch: data.branch }) : changeWord,
+            ),
+            data.ahead > 0 ? h('span', { style: Object.assign({}, metaTextStyle, { flex: 'none' }) }, T('git.ahead', { count: data.ahead })) : null,
+            data.behind > 0 ? h('span', { style: Object.assign({}, metaTextStyle, { flex: 'none' }) }, T('git.behind', { count: data.behind })) : null,
+          ),
+          h(
+            'div',
+            { 'data-git-changes': String(data.dirtyCount), style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8 } },
+            h(
+              'span',
+              { style: Object.assign({}, rowTextStyle, { color: data.dirtyCount > 0 ? TOKEN.text : TOKEN.muted }) },
+              changeWord,
+            ),
+            data.added + data.removed > 0
+              ? h(
+                  'span',
+                  { style: Object.assign({}, metaTextStyle, { flex: 'none', display: 'inline-flex', gap: 6 }) },
+                  h('span', { style: { color: TOKEN.success } }, '+' + data.added),
+                  h('span', { style: { color: TOKEN.error } }, '-' + data.removed),
+                )
+              : null,
+          ),
+        );
+      }
+
+      return h(
+        Section,
+        {
+          id: 'changes',
+          title: T('section.changes'),
+          icon: ChangesIcon,
+          defaultOpen: true,
+          separated: props.separated,
+          trailing: h(
+            'button',
+            {
+              type: 'button',
+              'data-git-refresh': 'true',
+              'aria-label': T('git.refresh'),
+              title: T('git.refresh'),
+              onClick: function (event) {
+                event.stopPropagation();
+                props.onRefresh();
+              },
+              onMouseEnter: function () {
+                setHover(true);
+              },
+              onMouseLeave: function () {
+                setHover(false);
+              },
+              style: {
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 22,
+                height: 22,
+                padding: 0,
+                border: 0,
+                borderRadius: 6,
+                background: hover ? TOKEN.hover : 'transparent',
+                color: TOKEN.muted,
+                cursor: 'pointer',
+              },
+            },
+            h(RefreshIcon, { size: 13 }),
+          ),
+        },
+        rows,
+      );
+    }
+
+    /**
+     * 展开策略菜单（ZCode 的 EllipsisIcon 菜单）。ZCode 只发了一个「自动展开」项，
+     * 这里把它原本设计的三态补全：自动（默认收起）/ 始终展开 / 始终收起，并持久化。
+     * 菜单用 fixed 定位，因为面板 `overflow: hidden` 会裁掉 absolute 子元素。
+     */
+    function DisplayModeMenu(props) {
+      const T = props.T;
+      const [open, setOpen] = useState(false);
+      const [anchor, setAnchor] = useState(null);
+      const container = useRef(null);
+      useEffect(
+        function () {
+          if (!open) return undefined;
+          const onPointerDown = function (event) {
+            if (container.current && !container.current.contains(event.target)) setOpen(false);
+          };
+          document.addEventListener('pointerdown', onPointerDown, true);
+          return function () {
+            document.removeEventListener('pointerdown', onPointerDown, true);
+          };
+        },
+        [open],
+      );
+      const MODES = ['auto', 'expanded', 'collapsed'];
+      return h(
+        'span',
+        { ref: container, style: { display: 'inline-flex' } },
+        h(
+          'button',
+          {
+            type: 'button',
+            'data-display-mode-trigger': 'true',
+            'aria-label': T('panel.mode'),
+            'aria-expanded': open,
+            title: T('panel.mode'),
+            onClick: function (event) {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setAnchor({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+              setOpen(function (value) {
+                return !value;
+              });
+            },
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 24,
+              height: 24,
+              padding: 0,
+              border: 0,
+              borderRadius: 6,
+              background: 'transparent',
+              color: TOKEN.muted,
+              cursor: 'pointer',
+            },
+          },
+          h(EllipsisIcon, { size: 14 }),
+        ),
+        open && anchor
+          ? h(
+              'div',
+              {
+                'data-display-mode-menu': 'true',
+                style: {
+                  position: 'fixed',
+                  top: anchor.top,
+                  right: anchor.right,
+                  zIndex: 1102,
+                  width: 208,
+                  padding: 4,
+                  boxSizing: 'border-box',
+                  background: 'var(--dsw-specific-menu, ' + TOKEN.surface + ')',
+                  border: 0,
+                  borderRadius: 'var(--dsw-radius-lg, 12px)',
+                  boxShadow: 'var(--dsw-elevation-prominent, 0 6px 24px rgba(0,0,0,0.18))',
+                  backdropFilter: 'var(--dsw-menu-backdrop-filter, none)',
+                  color: TOKEN.text,
+                },
+              },
+              MODES.map(function (value) {
+                const selected = props.mode === value;
+                return h(
+                  'button',
+                  {
+                    key: value,
+                    type: 'button',
+                    role: 'menuitemradio',
+                    'aria-checked': selected,
+                    'data-display-mode-item': value,
+                    onClick: function () {
+                      props.onChange(value);
+                      setOpen(false);
+                    },
+                    style: Object.assign({}, clickableRowStyle, {
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 8px',
+                      background: selected ? TOKEN.hover : 'transparent',
+                    }),
+                  },
+                  h('span', { style: { width: 12, flex: 'none', color: TOKEN.brand } }, selected ? '✓' : ''),
+                  h('span', { style: { minWidth: 0, whiteSpace: 'nowrap' } }, T('panel.mode.' + value)),
+                );
+              }),
+            )
+          : null,
+      );
+    }
+
     // ----------------------------------------------------------- 主组件
     /**
      * 内部错误边界。为什么必须有：slot 条目在渲染抛错时会被框架"摘除"（abdicate），
@@ -1299,10 +1870,56 @@ window.__ModuleLoader__.load({
       );
       const jobsState = useJobsState(props.sessionId);
       const jobs = jobsState.rows;
+      const planProjection = useProjection('plan');
       const liveJobCount = jobs.filter(function (job) {
         return jobIsLive(job.status);
       }).length;
-      const [collapsed, setCollapsed] = useState(true);
+      /** ZCode 把工作流单列一个分区；这里按 job.kind 拆开，其余留在「后台」。 */
+      const workflowJobs = jobs.filter(function (job) {
+        return job.kind === 'workflow';
+      });
+      const backgroundJobs = jobs.filter(function (job) {
+        return job.kind !== 'workflow';
+      });
+      const [mode, setMode] = useState(readDisplayMode);
+      const [collapsed, setCollapsed] = useState(readDisplayMode() !== 'expanded');
+      const [capsuleHover, setCapsuleHover] = useState(false);
+      const [git, setGit] = useState({ state: 'idle', data: null, error: null });
+
+      const changeMode = useCallback(function (next) {
+        setMode(next);
+        writeDisplayMode(next);
+        if (next === 'expanded') setCollapsed(false);
+        if (next === 'collapsed') setCollapsed(true);
+      }, []);
+
+      const loadGit = useCallback(
+        function () {
+          const sessionId = props.sessionId;
+          if (!sessionId) return;
+          setGit(function (current) {
+            return { state: 'loading', data: current.data, error: null };
+          });
+          // 只读路由由本包宿主半区注册；同源 fetch 会带上页面自身的连接鉴权。
+          fetch(GIT_ROUTE + '?sessionId=' + encodeURIComponent(sessionId), { headers: { accept: 'application/json' } })
+            .then(function (response) {
+              if (response.status === 404) {
+                // 宿主半区只在 DSH 启动时读一次；路由不存在 = 宿主那半还是旧代码。
+                // 这不是错误，是部署时序，如实告诉用户怎么让它生效。
+                setGit({ state: 'host-missing', data: null, error: null });
+                return undefined;
+              }
+              if (!response.ok) throw new Error('HTTP ' + response.status);
+              return response.json().then(function (data) {
+                setGit({ state: 'ok', data: data, error: null });
+              });
+            })
+            .catch(function (error) {
+              setGit({ state: 'error', data: null, error: String((error && error.message) || error) });
+            });
+        },
+        [props.sessionId],
+      );
 
       const collapse = useCallback(function () {
         setCollapsed(true);
@@ -1344,13 +1961,31 @@ window.__ModuleLoader__.load({
       }
 
       const hasContent = Boolean(metric);
-      const hasPanelContent = Boolean(goal) || todos.length > 0 || jobs.length > 0 || agents.length > 0;
+      const hasPanelContent =
+        Boolean(goal) ||
+        todos.length > 0 ||
+        jobs.length > 0 ||
+        agents.length > 0 ||
+        planProjection !== undefined ||
+        git.data !== null ||
+        git.state === 'host-missing';
+
+      /** 展开策略三态：auto 用本地状态；expanded / collapsed 覆盖它。 */
+      const isCollapsed = mode === 'expanded' ? false : mode === 'collapsed' ? true : collapsed;
+
+      // 展开时才懒加载 git 状态（收起态不打宿主的只读路由）。effect 必须在任何提前 return 之前。
+      useEffect(
+        function () {
+          if (!isCollapsed && git.state === 'idle') loadGit();
+        },
+        [isCollapsed, git.state, loadGit],
+      );
 
       if (!hasContent && !hasPanelContent) return null;
 
       const MetricIcon = metric ? metric.icon : ListIcon;
 
-      if (collapsed) {
+      if (isCollapsed) {
         return h(
           'div',
           { style: ANCHOR_STYLE, 'data-zcode-status-anchor': 'true' },
@@ -1363,6 +1998,18 @@ window.__ModuleLoader__.load({
               'aria-label': T('panel.expand'),
               title: T('panel.expand'),
               onClick: expand,
+              onMouseEnter: function () {
+                setCapsuleHover(true);
+              },
+              onMouseLeave: function () {
+                setCapsuleHover(false);
+              },
+              onFocus: function () {
+                setCapsuleHover(true);
+              },
+              onBlur: function () {
+                setCapsuleHover(false);
+              },
               style: {
                 pointerEvents: 'auto',
                 display: 'inline-flex',
@@ -1381,7 +2028,12 @@ window.__ModuleLoader__.load({
                 backdropFilter: 'var(--dsw-menu-backdrop-filter, none)',
               },
             },
-            h('span', { style: { display: 'flex', color: metric ? metric.color : TOKEN.muted } }, h(MetricIcon, { size: 15 })),
+            // ZCode：悬停/聚焦时主图标换成"展开"图标（Maximize2Icon 的等价物）。
+            h(
+              'span',
+              { style: { display: 'flex', color: metric ? metric.color : TOKEN.muted } },
+              h(capsuleHover ? MaximizeIcon : MetricIcon, { size: 15 }),
+            ),
             h(
               'span',
               {
@@ -1446,6 +2098,8 @@ window.__ModuleLoader__.load({
             },
             h('span', { style: { display: 'flex', color: TOKEN.muted } }, h(ListIcon, { size: 14 })),
             h('span', { style: { fontWeight: 600 } }, T('panel.title')),
+            h('span', { style: { flex: '1 1 auto' } }),
+            h(DisplayModeMenu, { T: T, mode: mode, onChange: changeMode }),
             h(
               'button',
               {
@@ -1455,7 +2109,7 @@ window.__ModuleLoader__.load({
                 title: T('panel.collapse'),
                 onClick: collapse,
                 style: {
-                  marginLeft: 'auto',
+                  flex: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1488,30 +2142,92 @@ window.__ModuleLoader__.load({
                 padding: '6px 12px 6px 6px',
               },
             },
+            // ZCode 的分区顺序：更改(环境) → 目标 → 计划 → 进程 → 后台(终端) → 工作流 → 智能体。
+            // separated 逐个累加：只有"前一个分区真的渲染了"才画那条分隔线。
+            git.data || git.error || git.state === 'host-missing'
+              ? h(
+                  PanelErrorBoundary,
+                  { label: 'changes' },
+                  h(GitSection, { T: T, git: git, onRefresh: loadGit, separated: false }),
+                )
+              : null,
             goal
               ? h(
                   PanelErrorBoundary,
                   { label: 'goal' },
-                  h(GoalSection, { T: T, goal: goal, separated: false }),
+                  h(GoalSection, {
+                    T: T,
+                    goal: goal,
+                    sessionId: props.sessionId,
+                    separated: Boolean(git.data || git.error || git.state === 'host-missing'),
+                  }),
+                )
+              : null,
+            planProjection !== undefined
+              ? h(
+                  PanelErrorBoundary,
+                  { label: 'plan' },
+                  h(PlanModeSection, {
+                    T: T,
+                    plan: planProjection,
+                    separated: Boolean(git.data || git.error || git.state === 'host-missing' || goal),
+                  }),
                 )
               : null,
             todos.length > 0
               ? h(
                   PanelErrorBoundary,
                   { label: 'progress' },
-                  h(ProgressSection, { T: T, todos: todos, separated: Boolean(goal) }),
+                  h(ProgressSection, {
+                    T: T,
+                    todos: todos,
+                    separated: Boolean(
+                      git.data || git.error || git.state === 'host-missing' || goal || planProjection !== undefined,
+                    ),
+                  }),
                 )
               : null,
-            jobs.length > 0
+            backgroundJobs.length > 0
               ? h(
                   PanelErrorBoundary,
                   { label: 'background' },
                   h(JobSection, {
                     T: T,
-                    jobs: jobs,
+                    id: 'background',
+                    titleKey: 'section.background',
+                    jobs: backgroundJobs,
                     observed: jobsState.observed,
                     sessionId: props.sessionId,
-                    separated: Boolean(goal) || todos.length > 0,
+                    // ZCode：终端分区默认收起。
+                    defaultOpen: false,
+                    separated: Boolean(
+                      git.data || git.error || goal || planProjection !== undefined || todos.length > 0,
+                    ),
+                  }),
+                )
+              : null,
+            workflowJobs.length > 0
+              ? h(
+                  PanelErrorBoundary,
+                  { label: 'workflow' },
+                  h(JobSection, {
+                    T: T,
+                    id: 'workflow',
+                    titleKey: 'section.workflow',
+                    icon: WorkflowIcon,
+                    jobs: workflowJobs,
+                    observed: jobsState.observed,
+                    sessionId: props.sessionId,
+                    // ZCode：工作流分区默认收起。
+                    defaultOpen: false,
+                    separated: Boolean(
+                      git.data ||
+                        git.error ||
+                        goal ||
+                        planProjection !== undefined ||
+                        todos.length > 0 ||
+                        backgroundJobs.length > 0,
+                    ),
                   }),
                 )
               : null,
@@ -1523,7 +2239,16 @@ window.__ModuleLoader__.load({
                     T: T,
                     agents: agents,
                     parentSessionId: props.sessionId,
-                    separated: Boolean(goal) || todos.length > 0 || jobs.length > 0,
+                    // ZCode：智能体分区默认收起。
+                    defaultOpen: false,
+                    separated: Boolean(
+                      git.data ||
+                        git.error ||
+                        goal ||
+                        planProjection !== undefined ||
+                        todos.length > 0 ||
+                        jobs.length > 0,
+                    ),
                   }),
                 )
               : null,
@@ -1544,6 +2269,22 @@ window.__ModuleLoader__.load({
               return scope.locale.register(NS, { zh: ZH, en: EN });
             },
             'dsh-session-status-panel: dictionaries',
+          );
+        });
+        // 目标动作（暂停/继续/清除）走客户端 remote.goals —— ui-goal 用的同一个命名空间
+        // （它的 inject 是 ['remote', 'remote.goals', …]，所以这两个都要声明）。
+        ctx.inject(['remote', 'remote.goals'], function (scope) {
+          scope.effect(
+            function () {
+              goalsFace =
+                (scope.remote && scope.remote.goals) ||
+                (typeof scope.get === 'function' ? scope.get('remote.goals') : null) ||
+                null;
+              return function () {
+                goalsFace = null;
+              };
+            },
+            'dsh-session-status-panel: goals face',
           );
         });
         // 可选注入：没有 jobs 服务时只是少一个分区，不会让整块面板不激活。
