@@ -1759,12 +1759,27 @@ window.__ModuleLoader__.load({
         if (next === 'collapsed') setCollapsed(true);
       }, []);
 
-      const collapse = useCallback(function () {
-        setCollapsed(true);
-      }, []);
-      const expand = useCallback(function () {
-        setCollapsed(false);
-      }, []);
+      /*
+       * 手动开合 = 写 override（与 ZCode 同语义：胶囊点击 → variant 'panel'，
+       * 收起按钮 → variant 'mini'，而不是切回'自动'）。
+       * 早先的写法是「点胶囊只改本地 collapsed」，而 isCollapsed 仍由 mode 派生
+       * → mode 停在 'collapsed' 时面板锁在收起态，点了没反应。
+       * 这样改之后「始终收起 / 始终展开」回归"默认态"语义，菜单里随时能回'自动'。
+       */
+      const collapse = useCallback(
+        function () {
+          setCollapsed(true);
+          changeMode('collapsed');
+        },
+        [changeMode],
+      );
+      const expand = useCallback(
+        function () {
+          setCollapsed(false);
+          changeMode('expanded');
+        },
+        [changeMode],
+      );
 
       const currentTodo = findCurrentTodo(todos);
       const completedTodo = findCompletedTodo(todos);
@@ -1818,7 +1833,7 @@ window.__ModuleLoader__.load({
             {
               type: 'button',
               'data-zcode-status-panel': 'capsule',
-              'aria-expanded': false,
+              'aria-expanded': isCollapsed ? false : true,
               'aria-label': T('panel.expand'),
               title: T('panel.expand'),
               onClick: expand,
