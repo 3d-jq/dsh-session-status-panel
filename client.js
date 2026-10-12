@@ -574,8 +574,8 @@ window.__ModuleLoader__.load({
 
     /**
      * 折叠行：点击就地展开该组；悬停（或键盘聚焦）140ms 后在面板左侧弹出预览卡。
-     * 预览卡用 `position: fixed` —— 面板内容区是滚动容器，absolute 会被裁掉；
-     * 位置由折叠行自己的 getBoundingClientRect 推导（只量自己的 DOM，不碰别人的）。
+     * 预览卡坐标先在**视口**里算好（量折叠行自己的 DOM，不碰别人的），再由
+     * toPanelSpace() 换算成面板空间——因为面板的 backdrop-filter 会成为 fixed/absolute 的包含块。
      */
     function FoldRow(props) {
       const [hover, setHover] = useState(false);
@@ -590,6 +590,7 @@ window.__ModuleLoader__.load({
       useEffect(function () {
         return clearTimer;
       }, []);
+      const PREVIEW_WIDTH = 264;
       const show = function (event) {
         setHover(true);
         const items = props.items || [];
@@ -597,10 +598,13 @@ window.__ModuleLoader__.load({
         const rect = event.currentTarget.getBoundingClientRect();
         clearTimer();
         timer.current = setTimeout(function () {
-          setAnchor({
-            top: Math.max(8, Math.min(rect.top - 6, window.innerHeight - 220)),
-            right: Math.max(8, window.innerWidth - rect.left + 10),
-          });
+          const desiredRight = window.innerWidth - rect.left + 10;
+          setAnchor(
+            toPanelSpace({
+              top: viewportTop(rect.top - 6, 260),
+              right: viewportRight(desiredRight, PREVIEW_WIDTH),
+            }),
+          );
         }, 140);
       };
       const hide = function () {
@@ -643,7 +647,9 @@ window.__ModuleLoader__.load({
               {
                 'data-todo-preview': props.group,
                 style: {
-                  position: 'fixed',
+                  // relative + 面板空间坐标：面板的 backdrop-filter 会成为包含块，
+                  // 所以坐标由 toPanelSpace() 从视口换算而来（详见它的注释）。
+                  position: 'relative',
                   top: anchor.top,
                   right: anchor.right,
                   zIndex: 1101,
@@ -1467,6 +1473,41 @@ window.__ModuleLoader__.load({
       );
     }
 
+    const PANEL_REF = { current: null };
+
+    /** 面板表面（`aside`）的真实视口矩形。 */
+    function panelRect() {
+      return PANEL_REF.current && typeof PANEL_REF.current.getBoundingClientRect === 'function'
+        ? PANEL_REF.current.getBoundingClientRect()
+        : null;
+    }
+
+    /**
+     * 把"视口坐标下的菜单位置"换算成**相对面板表面**的坐标。
+     *
+     * 为什么必须换算：面板表面带 `backdrop-filter: blur(40px)`（宿主菜单面语汇），
+     * 而 backdrop-filter 会让该元素成为其 fixed 后代的**包含块**——于是写 `top/right`
+     * 时参照系是面板自身，不是视口。宿主 Radix 菜单不受影响是因为它 portal 到 body；
+     * 我们不能用 portal（插件半区不 import ReactDOM），所以自己做坐标换算。
+     */
+    function toPanelSpace(point) {
+      const rect = panelRect();
+      if (!rect) return { top: 0, right: 0 };
+      return { top: point.top - rect.top, right: rect.right - point.right };
+    }
+
+    /** 在视口里选一个避开上下边界的 top（给定期望值与卡片高度）。 */
+    function viewportTop(desired, height) {
+      const max = Math.max(8, window.innerHeight - height - 8);
+      return Math.max(8, Math.min(desired, max));
+    }
+
+    /** 在视口里选一个避开左右边界的 right。 */
+    function viewportRight(desired, width) {
+      const max = Math.max(8, window.innerWidth - width - 8);
+      return Math.max(8, Math.min(desired, max));
+    }
+
     // ------------------------------------------------------ 目标动作与展开策略
     /** 客户端 `remote.goals` 面（暂停/继续/清除）。缺失时目标分区只剩只读展示。 */
     let goalsFace = null;
@@ -1491,10 +1532,12 @@ window.__ModuleLoader__.load({
       }
     }
 
+    const MENU_WIDTH = 208;
     /**
      * 展开策略菜单（ZCode 的 EllipsisIcon 菜单）。ZCode 只发了一个「自动展开」项，
      * 这里把它原本设计的三态补全：自动（默认收起）/ 始终展开 / 始终收起，并持久化。
-     * 菜单用 fixed 定位，因为面板 `overflow: hidden` 会裁掉 absolute 子元素。
+     * 菜单不能 portal（插件半区不 import ReactDOM），而面板的 backdrop-filter 又会成为
+     * fixed/absolute 的包含块，所以坐标先在视口里算、再由 toPanelSpace() 换算进面板空间。
      */
     function DisplayModeMenu(props) {
       const T = props.T;
@@ -1528,7 +1571,12 @@ window.__ModuleLoader__.load({
             title: T('panel.mode'),
             onClick: function (event) {
               const rect = event.currentTarget.getBoundingClientRect();
-              setAnchor({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+              setAnchor(
+                toPanelSpace({
+                  top: viewportTop(rect.bottom + 4, 160),
+                  right: viewportRight(window.innerWidth - rect.right, MENU_WIDTH),
+                }),
+              );
               setOpen(function (value) {
                 return !value;
               });
@@ -1555,11 +1603,13 @@ window.__ModuleLoader__.load({
               {
                 'data-display-mode-menu': 'true',
                 style: {
-                  position: 'fixed',
+                  // 面板空间坐标（由 toPanelSpace 换算）；面板的 backdrop-filter 是包含块，
+                  // 直接写视口坐标会整体偏移一个面板矩形。
+                  position: 'absolute',
                   top: anchor.top,
                   right: anchor.right,
                   zIndex: 1102,
-                  width: 208,
+                  width: MENU_WIDTH,
                   padding: 4,
                   boxSizing: 'border-box',
                   background: 'var(--dsw-specific-menu, ' + TOKEN.surface + ')',
@@ -1699,6 +1749,8 @@ window.__ModuleLoader__.load({
       const [mode, setMode] = useState(readDisplayMode);
       const [collapsed, setCollapsed] = useState(readDisplayMode() !== 'expanded');
       const [capsuleHover, setCapsuleHover] = useState(false);
+      /** 面板表面的 ref：浮层坐标换算要用它测矩形。 */
+      const panelRef = useRef(null);
 
       const changeMode = useCallback(function (next) {
         setMode(next);
@@ -1836,6 +1888,10 @@ window.__ModuleLoader__.load({
         h(
           'aside',
           {
+            ref: function (node) {
+              panelRef.current = node;
+              PANEL_REF.current = node;
+            },
             'data-zcode-status-panel': 'panel',
             'data-state': 'expanded',
             'aria-label': T('panel.aria'),
