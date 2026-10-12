@@ -598,11 +598,11 @@ window.__ModuleLoader__.load({
         const rect = event.currentTarget.getBoundingClientRect();
         clearTimer();
         timer.current = setTimeout(function () {
-          const desiredRight = window.innerWidth - rect.left + 10;
           setAnchor(
-            toPanelSpace({
-              top: viewportTop(rect.top - 6, 260),
-              right: viewportRight(desiredRight, PREVIEW_WIDTH),
+            panelOffset(panelRect(), {
+              // 预览卡放在面板左侧 10px。
+              top: clampTop(rect.top - 6, 260, window.innerHeight),
+              rightEdge: clampRightEdge(rect.left - 10, PREVIEW_WIDTH, window.innerWidth),
             }),
           );
         }, 140);
@@ -1482,30 +1482,36 @@ window.__ModuleLoader__.load({
         : null;
     }
 
-    /**
-     * 把"视口坐标下的菜单位置"换算成**相对面板表面**的坐标。
+    /*
+     * 浮层坐标：面板表面带 `backdrop-filter: blur(40px)`（宿主菜单面语汇），而
+     * backdrop-filter 会让它成为 fixed/absolute 后代的**包含块**；同时 aside 自己是
+     * `position: static`，所以这些浮层的包含块实际是外层那个 `position: fixed` 的锚点
+     * （锚点只有面板一个孩子，两者矩形相同）。宿主 Radix 菜单不受影响是因为它 portal 到
+     * document.body；插件半区不能 import react-dom，所以自己做换算。
      *
-     * 为什么必须换算：面板表面带 `backdrop-filter: blur(40px)`（宿主菜单面语汇），
-     * 而 backdrop-filter 会让该元素成为其 fixed 后代的**包含块**——于是写 `top/right`
-     * 时参照系是面板自身，不是视口。宿主 Radix 菜单不受影响是因为它 portal 到 body；
-     * 我们不能用 portal（插件半区不 import ReactDOM），所以自己做坐标换算。
+     * 下面三个函数都写成**纯函数**（显式吃矩形与视口尺寸），以便被脚本直接单元测试：
+     *   clampTop / clampRightEdge —— 在视口里选一个不越界的值；
+     *   panelOffset —— 把"视口坐标下的边缘位置"换算成面板空间偏移。
+     * 统一约定：edge = { top: 视口 y, rightEdge: 视口 x }（rightEdge 是绝对 x，不是距离）。
      */
-    function toPanelSpace(point) {
-      const rect = panelRect();
-      if (!rect) return { top: 0, right: 0 };
-      return { top: point.top - rect.top, right: rect.right - point.right };
-    }
 
-    /** 在视口里选一个避开上下边界的 top（给定期望值与卡片高度）。 */
-    function viewportTop(desired, height) {
-      const max = Math.max(8, window.innerHeight - height - 8);
+    /** 在视口里选一个避开上下边界的 top。 */
+    function clampTop(desired, height, viewportHeight) {
+      const max = Math.max(8, viewportHeight - height - 8);
       return Math.max(8, Math.min(desired, max));
     }
 
-    /** 在视口里选一个避开左右边界的 right。 */
-    function viewportRight(desired, width) {
-      const max = Math.max(8, window.innerWidth - width - 8);
-      return Math.max(8, Math.min(desired, max));
+    /** 在视口里选一个避开左右边界的**右缘** x（菜单/预览卡都以右缘对齐）。 */
+    function clampRightEdge(desired, width, viewportWidth) {
+      const min = 8 + width;
+      const max = Math.max(min, viewportWidth - 8);
+      return Math.max(min, Math.min(desired, max));
+    }
+
+    /** 视口坐标 → 面板空间偏移（top 相对面板顶、right 相对面板右缘）。 */
+    function panelOffset(panelBox, edge) {
+      if (!panelBox) return { top: 0, right: 0 };
+      return { top: edge.top - panelBox.top, right: panelBox.right - edge.rightEdge };
     }
 
     // ------------------------------------------------------ 目标动作与展开策略
@@ -1572,9 +1578,10 @@ window.__ModuleLoader__.load({
             onClick: function (event) {
               const rect = event.currentTarget.getBoundingClientRect();
               setAnchor(
-                toPanelSpace({
-                  top: viewportTop(rect.bottom + 4, 160),
-                  right: viewportRight(window.innerWidth - rect.right, MENU_WIDTH),
+                panelOffset(panelRect(), {
+                  // 菜单右缘与按钮右缘对齐、落在按钮下方 4px。
+                  top: clampTop(rect.bottom + 4, 160, window.innerHeight),
+                  rightEdge: clampRightEdge(rect.right, MENU_WIDTH, window.innerWidth),
                 }),
               );
               setOpen(function (value) {
