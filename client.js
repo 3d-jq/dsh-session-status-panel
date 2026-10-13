@@ -18,6 +18,277 @@ window.__ModuleLoader__.load({
     const h = React.createElement;
     const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
+    // __ZCODE_MODEL_BEGIN__
+    /**
+     * 1:1 移植自 ZCode 的会话状态面板模型层
+     * ─────────────────────────────────────────────────────────────────────────
+     * 上游：ZCode（https://github.com/zai-org/ZCode，Apache License 2.0）
+     * 源文件：packages/ui/src/v4/conversationStatusPanelModel.ts（385 行，逐字搬运）
+     *        packages/ui/src/v4/conversationLayout.ts
+     *        packages/ui/src/v4/conversationGoalSummaryModel.ts
+     *
+     * 移植时唯一的改动是**数据入口适配**：ZCode 的输入是 ZCode 自己的协议类型
+     * （PlanState / BackgroundWorkSummary / RunningSubagentSummary / GoalState /
+     * WorkflowRunState / ToolCallRow / GitRepositorySummary），DSH 侧的数据来自
+     * 会话投影与 jobs roster。`buildConversationStatusPanelModel` 的函数签名与
+     * 全部显示规则（优先级、计数、降级行、Stop 判据、空态判定）保持原样，
+     * 由 `adaptToZCodeInput` 把 DSH 数据喂进去。
+     *
+     * 未搬运的部分（DSH 侧没有对应数据源，见 README「已知限制」）：
+     *   - git 分区所需的数据由宿主半区的只读路由提供，形状与 ZCode 的 gitSummary 对齐；
+     *   - sessionPlans（ExitPlanMode 记录）DSH 没有对应投影，恒为 null。
+     */
+
+    // ─────────────────────────────────────────────────────────── 类型（原样）
+    function buildConversationStatusPanelModel(input) {
+      const git = input.isOfficeMode ? null : buildGitModel(input);
+      const goal = input.goal ?? null;
+      const sessionPlans = buildSessionPlansModel(input.sessionPlans, input.workspacePath);
+      const plan = buildPlanModel(input.plan);
+      const runningBashWorks = [];
+      const workflowWorkByWorkId = new Map();
+      const subagentControlByChildSessionId = new Map();
+      for (const work of input.backgroundWorks ?? []) {
+        if (work.kind === 'workflow') {
+          // "workflow" 只按 workId ≡ runId 进 workflow 联接表，不留在 runningBashWorks 里
+          // （否则同一个 run 会在两个分区各出现一次）。这一支收在 running 闸门之前：
+          // 题名与启动时刻对已结束的 work 依然有效，status 判断留到 buildRunningWorkflowRuns。
+          workflowWorkByWorkId.set(work.workId, work);
+          continue;
+        }
+        if (work.status !== 'running') continue;
+        if (work.kind === 'bash') {
+          runningBashWorks.push(work);
+        } else if (work.kind === 'subagent' && work.childSessionId) {
+          // 只接受唯一 childSessionId 精确匹配；重复或缺失身份时宁可不显示控制，
+          // 也不能按标题、时间猜测并停止错误任务。
+          const existing = subagentControlByChildSessionId.get(work.childSessionId);
+          subagentControlByChildSessionId.set(
+            work.childSessionId,
+            existing === undefined ? work : null,
+          );
+        }
+      }
+      const runningSubagentWorks = (input.runningSubagents ?? []).map((subagent) => {
+        const controlWork = subagentControlByChildSessionId.get(subagent.childSessionId);
+        if (!controlWork) return subagent;
+        return {
+          ...subagent,
+          controlWorkId: controlWork.workId,
+          cancellable: controlWork.cancellable !== false,
+        };
+      });
+      const projectedChildSessionIds = new Set(
+        runningSubagentsSafe(runningSubagentWorks).map((subagent) => subagent.childSessionId),
+      );
+      for (const [childSessionId, controlWork] of subagentControlByChildSessionId) {
+        if (!controlWork || projectedChildSessionIds.has(childSessionId)) continue;
+        // backgroundWorks 已有精确 childSessionId 的 running 事实，但 subagents
+        // 投影交接的短窗口可能暂时缺行；只用唯一身份的权威 work 补齐同一控制，
+        // 重复身份仍拒绝猜测。
+        runningSubagentWorks.push({
+          agentId: controlWork.workId,
+          childSessionId,
+          controlWorkId: controlWork.workId,
+          subagentType: 'subagent',
+          title: controlWork.title,
+          status: controlWork.blocked ? 'blocked' : 'running',
+          startedAt: controlWork.startedAt,
+          cancellable: controlWork.cancellable !== false,
+        });
+      }
+
+      const runningWorkflowRuns = buildRunningWorkflowRuns(input.workflowRuns, workflowWorkByWorkId);
+
+      return {
+        git,
+        goal,
+        sessionPlans,
+        plan,
+        runningBashWorks,
+        runningSubagentWorks,
+        runningWorkflowRuns,
+        hasContent: Boolean(
+          git ||
+            goal ||
+            sessionPlans ||
+            plan ||
+            runningBashWorks.length > 0 ||
+            runningSubagentWorks.length > 0 ||
+            runningWorkflowRuns.length > 0,
+        ),
+      };
+    }
+
+    function runningSubagentsSafe(rows) {
+      return rows;
+    }
+
+    function buildGitModel({
+      gitSummary,
+      gitDirtyFileCount = 0,
+      gitWorktreeChangeSummary,
+    }) {
+      if (!gitSummary || !gitSummary.isGitAvailable || !gitSummary.isRepository) {
+        return null;
+      }
+      const added = gitWorktreeChangeSummary ? gitWorktreeChangeSummary.added : 0;
+      const removed = gitWorktreeChangeSummary ? gitWorktreeChangeSummary.removed : 0;
+      // 只在 worktree 有行级变化时展示 Git Tools（clean repo 不挂状态卡）。
+      if (added + removed <= 0) {
+        return null;
+      }
+      const isClean =
+        !gitSummary.isDirty &&
+        gitDirtyFileCount === 0 &&
+        added === 0 &&
+        removed === 0 &&
+        gitSummary.ahead === 0;
+
+      return {
+        branchName: gitSummary.branchName,
+        headRefType: gitSummary.headRefType,
+        dirtyFileCount: gitDirtyFileCount,
+        added,
+        removed,
+        ahead: gitSummary.ahead,
+        behind: gitSummary.behind,
+        isClean,
+      };
+    }
+
+    function buildPlanModel(plan) {
+      if (!plan || plan.items.length === 0) {
+        return null;
+      }
+      const completed = plan.items.filter((item) => item.status === 'completed');
+      return {
+        items: plan.items,
+        // 按状态重新分组会让 Todo 完成时跳到列表末尾，破坏 snapshot 的权威顺序。
+        // 这里完整保留原数组，滚动与状态样式由 renderer 负责。
+        displayItems: plan.items,
+        completedCount: completed.length,
+        waitingCount: plan.items.length - completed.length,
+        totalCount: plan.items.length,
+      };
+    }
+
+    function buildSessionPlansModel(rows, workspacePath) {
+      // DSH 侧没有 ExitPlanMode 记录投影，恒为 null（见文件头说明）。
+      return null;
+    }
+
+    function workflowRunOpenTarget(run) {
+      if (!run || !run.toolCallId) return null;
+      const workflowName = run.title && run.title !== run.runId ? run.title : undefined;
+      return {
+        runId: run.runId,
+        toolCallId: run.toolCallId,
+        ...(workflowName ? { workflowName } : {}),
+      };
+    }
+
+    function resolveSoleRunningWorkflowRunTarget(model) {
+      if (model.runningBashWorks.length > 0 || model.runningSubagentWorks.length > 0) return null;
+      if (model.runningWorkflowRuns.length !== 1) return null;
+      return workflowRunOpenTarget(model.runningWorkflowRuns[0]);
+    }
+
+    /**
+     * Workflows 分区：活动 run 与 workflow 后台任务按 workId ≡ runId 联接。
+     * 缺席处理按字段含义分簇：
+     *   - title / startedAt 是静态元数据，work 任何 status 都取；
+     *   - workId / cancellable 是 Stop 的前提，只在 work 仍 running 时给；
+     *   - run 有 work 全无：仍成行，只是没题名/时长/Stop；
+     *   - work 有 run 无：降级成只有题名/时长/Stop 的一行，追加在末尾
+     *     （它没有启动序上的位置，插进中间等于编造顺序）。
+     */
+    function buildRunningWorkflowRuns(runs, workflowWorkByWorkId) {
+      const rows = [];
+      const joinedWorkIds = new Set();
+      for (const run of runs ?? []) {
+        // pending 也是活动态：run 已起跑只是没派发第一个节点，藏起来会让用户在
+        // 「工作流启动了」和「面板出现它」之间看到空窗。
+        if (run.status !== 'pending' && run.status !== 'running') continue;
+        const work = workflowWorkByWorkId.get(run.runId);
+        if (work) joinedWorkIds.add(run.runId);
+        const steps = workflowRunStepCounts(run);
+        rows.push({
+          runId: run.runId,
+          ...(run.toolCallId ? { toolCallId: run.toolCallId } : {}),
+          status: run.status,
+          nodesSettled: steps.settled,
+          nodesTotal: steps.total,
+          ...(work ? { title: work.title, startedAt: work.startedAt } : {}),
+          ...(work && work.status === 'running'
+            ? {
+                workId: work.workId,
+                // 缺省即可停：能停而不给按钮比反过来更糟。
+                cancellable: work.cancellable !== false,
+              }
+            : {}),
+        });
+      }
+      // 顺序 = 投影 runs 序 = 启动序，模型不排序；重排会让面板行在每次投影更新时跳位。
+      for (const [workId, work] of workflowWorkByWorkId) {
+        if (joinedWorkIds.has(workId) || work.status !== 'running') continue;
+        rows.push({
+          runId: workId,
+          workId,
+          title: work.title,
+          startedAt: work.startedAt,
+          cancellable: work.cancellable !== false,
+        });
+      }
+      return rows;
+    }
+
+    /**
+     * 与 @zcode/shared 的 workflowRunStepCounts 同源：表内 + 表外。
+     *
+     * 逐字对照上游（packages/shared/src/zcode-protocol-v4/workflow-runs-caps.ts:118）：
+     * 「已结算」的判据是 **node.phase === 'settled'**，不是 status——status 是 StepRunStatus
+     * （pending/running/done/failed），phase 才是节点的结算相位。按 status 判会把 done 但相位
+     * 未结算的节点也算进去，步数虚高。
+     */
+    function workflowRunStepCounts(run) {
+      let settledInList = 0;
+      for (const node of run.nodes) if (node.phase === 'settled') settledInList += 1;
+      return {
+        total: run.nodes.length + (run.usage.nodesUnlisted ?? 0),
+        settled: settledInList + (run.usage.nodesUnlistedSettled ?? 0),
+      };
+    }
+
+    // ───────────────────────────────────────────────────── conversationLayout
+    // 上游：packages/ui/src/v4/conversationLayout.ts（逐字搬运）
+    const CONVERSATION_DRAFT_CONTENT_WIDTH_CLASS_NAME = 'max-w-2xl';
+    const CONVERSATION_CONTENT_WITH_STATUS_PANEL_WIDTH_CLASS_NAME =
+      'w-full @min-[864px]/conversation:w-[calc(100%_-_6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%_-_24rem)] @min-[1280px]/conversation:max-w-6xl';
+    const CONVERSATION_CONTENT_WITHOUT_STATUS_PANEL_WIDTH_CLASS_NAME =
+      'w-full @min-[864px]/conversation:w-[calc(100%_-_6rem)] @min-[864px]/conversation:max-w-4xl @min-[1280px]/conversation:w-[calc(100%_-_24rem)] @min-[1280px]/conversation:max-w-6xl';
+    const CONVERSATION_STATUS_PANEL_WIDE_OFFSET_CLASS_NAME = '@min-[1280px]/conversation:-translate-x-42';
+
+    function getConversationContentWidthClassName({ centeredEmptyLayout, statusPanelLayout }) {
+      if (centeredEmptyLayout) return CONVERSATION_DRAFT_CONTENT_WIDTH_CLASS_NAME;
+      return statusPanelLayout === 'none'
+        ? CONVERSATION_CONTENT_WITHOUT_STATUS_PANEL_WIDTH_CLASS_NAME
+        : CONVERSATION_CONTENT_WITH_STATUS_PANEL_WIDTH_CLASS_NAME;
+    }
+
+    function resolveConversationStatusPanelVariant({ variantOverride }) {
+      return variantOverride ?? 'auto';
+    }
+
+    function shouldUseConversationStatusPanelInlineLayout({ hasContent, variant }) {
+      return hasContent && variant !== 'mini';
+    }
+
+    function getConversationStatusPanelOffsetClassName(layout) {
+      return layout === 'none' ? undefined : CONVERSATION_STATUS_PANEL_WIDE_OFFSET_CLASS_NAME;
+    }
+    // __ZCODE_MODEL_END__
+
     // ------------------------------------------------------------ 文案字典
     /** locale 命名空间（本包自有）。 */
     const NS = 'sessionStatusPanel';
@@ -1028,6 +1299,150 @@ window.__ModuleLoader__.load({
         },
         h('ul', { style: { margin: 0, padding: 0, display: 'flex', flexDirection: 'column' } }, rows),
       );
+    }
+
+    // ------------------------------- ZCode 模型层（1:1 移植，见 zcode-model.js）
+    // 优先级链、计数、折叠窗口、降级行与 Stop 判据全部来自 ZCode 原版实现（见文件头注入块）；
+    // 只有「数据入口」是本插件自己的适配（adaptToZCodeInput）。
+    // 注入块里的 buildConversationStatusPanelModel / resolveConversationStatusPanelVariant /
+    // shouldUseConversationStatusPanelInlineLayout / getConversationStatusPanelOffsetClassName /
+    // workflowRunOpenTarget 已是本闭包内的函数声明，这里直接用，不再解构。
+
+    /**
+     * DSH 数据 → ZCode 模型输入。这是移植层里**唯一**由本包自己的部分：
+     * ZCode 的输入类型是它自己的协议（PlanState / BackgroundWorkSummary /
+     * RunningSubagentSummary / WorkflowRunState / GoalState / ToolCallRow / GitRepositorySummary），
+     * DSH 侧来自会话投影与 jobs roster。这里只做**形状对齐**，不做任何显示规则判断——
+     * 判断规则全部留在 ZCode 原版函数里。
+     */
+    function adaptToZCodeInput(options) {
+      const {
+        todos,
+        goal,
+        agents,
+        jobs,
+        gitSummary = null,
+        gitDirtyFileCount = 0,
+        gitWorktreeChangeSummary = null,
+      } = options;
+
+      // todos 投影 → ZCode PlanState（status 词表相同：pending / in_progress / completed）
+      const plan =
+        todos.length > 0
+          ? {
+              items: todos.map(function (item) {
+                return {
+                  id: item.content,
+                  content: item.content,
+                  status: item.status,
+                };
+              }),
+              updatedAt: 0,
+            }
+          : null;
+
+      // jobs roster → ZCode BackgroundWorkSummary（status 词表映射见 jobToZCodeWork）
+      const backgroundWorks = jobs.map(jobToZCodeWork);
+
+      // subagentCatalog → ZCode RunningSubagentSummary
+      // ZCode 的 Agent 分区只列「运行中」的子代理；目录里已结束的子会话不进 Agent 分区
+      // （它的已结束计数由页脚目录入口承担，DSH 没有对应页签，见 README 已知限制）。
+      const runningSubagents = agents.map(function (agent) {
+        return {
+          childSessionId: String(agent.id),
+          subagentType: typeof agent.label === 'string' && agent.label.trim() ? agent.label.trim() : 'subagent',
+          title:
+            typeof agent.label === 'string' && agent.label.trim()
+              ? agent.label.trim()
+              : String(agent.id),
+          status: 'running',
+        };
+      });
+
+      // 目标：ZCode 期望扁平的 GoalState；DSH 的 goal 投影是嵌套的，这里只做**字段搬运**，
+      // phase 词表映射见 goalToZCodeGoal。ZCode 的 phase 是 6 值语义
+      // （active/paused/verifying/verified/notSatisfied/failed），DSH 是 4 值
+      // （active/paused/blocked/complete），映射在 goalToZCodeGoal。
+      const goalState = goalToZCodeGoal(goal);
+
+      return {
+        isOfficeMode: false,
+        gitSummary,
+        gitDirtyFileCount,
+        gitWorktreeChangeSummary,
+        goal: goalState,
+        // DSH 没有 ExitPlanMode 记录投影：ZCode 的「计划」分区输入恒缺省。
+        sessionPlans: undefined,
+        workspacePath: undefined,
+        plan,
+        backgroundWorks,
+        runningSubagents,
+        // DSH 没有独立的 workflowRun 投影；workflow 以 job 形式出现在 backgroundWorks 里，
+        // 由 ZCode 的 buildRunningWorkflowRuns 走「work 有 run 无」的降级行分支产出运行中的行。
+        workflowRuns: undefined,
+      };
+    }
+
+    function jobToZCodeWork(job) {
+      return {
+        workId: job.id,
+        // ZCode 的 kind 只有 bash / subagent / workflow 三种；DSH 的 jobs 服务还有
+        // terminal / pwsh 等扩展 kind，一律折进 bash（ZCode 的 Terminals 分区按 bash 渲染）。
+        kind: job.kind === 'workflow' ? 'workflow' : job.kind === 'subagent' ? 'subagent' : 'bash',
+        title: job.label || job.id,
+        // ZCode 的 status 是 running / resultPending / failed / cancelled；
+        // DSH 的 running / stopping / completed / killed / failed 按语义对映。
+        status:
+          job.status === 'running'
+            ? 'running'
+            : job.status === 'stopping'
+              ? 'resultPending'
+              : job.status === 'completed'
+                ? 'resultPending'
+                : job.status === 'killed'
+                  ? 'cancelled'
+                  : 'failed',
+        startedAt: typeof job.startedAt === 'number' ? job.startedAt : 0,
+        finishedAt: typeof job.finishedAt === 'number' ? job.finishedAt : undefined,
+        cancellable: jobIsLive(job.status),
+        anchorRowId: null,
+        childSessionId: job.kind === 'subagent' ? job.label || undefined : undefined,
+        // 步骤计数进 progress（ZCode 的 workflow 行读 progress 之外还读 run 的 nodes；
+        // 降级行没有 run，所以文案只能来自 work 自己的字段）。
+        progress: job.progress,
+      };
+    }
+
+    function goalToZCodeGoal(projection) {
+      const snapshot = goalSnapshot(projection);
+      if (!snapshot) return null;
+      const phase = snapshot.phase;
+      return {
+        targetId: String(snapshot.id),
+        objective: typeof snapshot.objective === 'string' ? snapshot.objective : '',
+        summaryTitle: null,
+        timeUsedSeconds:
+          projection && typeof projection.createdAt === 'number' && typeof projection.updatedAt === 'number'
+            ? Math.max(0, Math.floor((projection.updatedAt - projection.createdAt) / 1000))
+            : 0,
+        activeRunStartedAtMs: null,
+        // ZCode phase（6 值）← DSH phase（4 值）：
+        //   active → active；paused → paused；blocked → notSatisfied（"还没达成"）；
+        //   complete → verified。verifying / failed 在 DSH 没有对应态，按最近的语义落。
+        phase:
+          phase === 'active'
+            ? 'active'
+            : phase === 'paused'
+              ? 'paused'
+              : phase === 'blocked'
+                ? 'notSatisfied'
+                : phase === 'complete'
+                  ? 'verified'
+                  : 'failed',
+        iteration: projection && typeof projection.roundsStarted === 'number' ? projection.roundsStarted : 0,
+        verifications: [],
+        iterations: [],
+      };
     }
 
     // ------------------------------------------------------- 后台任务（jobs）
