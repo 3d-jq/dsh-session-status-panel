@@ -20,20 +20,28 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const MODEL_FILE = resolve(root, 'zcode-model.js');
+const ICONS_FILE = resolve(root, 'dsh-icons.js');
 const CLIENT_FILE = resolve(root, 'client.js');
 
 const BEGIN_TEXT = '// __ZCODE_MODEL_BEGIN__';
 const END_TEXT = '// __ZCODE_MODEL_END__';
+const ICONS_BEGIN = '// __DSH_ICONS_BEGIN__';
+const ICONS_END = '// __DSH_ICONS_END__';
 
 const isMarker = (line, text) => line.trim() === text;
 
-const modelLines = readFileSync(MODEL_FILE, 'utf8')
-  // 行尾规范化：Windows 检出可能是 CRLF，而 zcode-model.js 可能是 LF。
-  // 不统一就会让"内联块 vs 源文件"的比较永远不一致（每个 \r 都算差异）。
-  .replace(/\r\n?/g, '\n')
+const normalizeNewlines = (text) => text.replace(/\r\n?/g, '\n');
+
+const modelLines = normalizeNewlines(readFileSync(MODEL_FILE, 'utf8'))
   .replace(/\s+$/, '')
   .split('\n');
-const clientText = readFileSync(CLIENT_FILE, 'utf8').replace(/\r\n?/g, '\n');
+// 图标表源码是 ESM（export const …），内联时要去掉 export 并把顶层 const 收进闭包。
+const iconLines = normalizeNewlines(readFileSync(ICONS_FILE, 'utf8'))
+  .replace(/^export /gm, '')
+  .replace(/\s+$/, '')
+  .split('\n');
+
+const clientText = normalizeNewlines(readFileSync(CLIENT_FILE, 'utf8'));
 const clientLines = clientText.split('\n');
 
 const beginIndex = clientLines.findIndex((line) => isMarker(line, BEGIN_TEXT));
@@ -41,33 +49,62 @@ const endIndex = clientLines.findIndex((line) => isMarker(line, END_TEXT));
 if (beginIndex < 0 || endIndex < 0 || endIndex < beginIndex) {
   throw new Error('client.js 里找不到成对的 ' + BEGIN_TEXT + ' / ' + END_TEXT + ' 标记行');
 }
+const iconsBeginIndex = clientLines.findIndex((line) => isMarker(line, ICONS_BEGIN));
+const iconsEndIndex = clientLines.findIndex((line) => isMarker(line, ICONS_END));
+if (iconsBeginIndex < 0 || iconsEndIndex < 0 || iconsEndIndex < iconsBeginIndex) {
+  throw new Error('client.js 里找不到成对的 ' + ICONS_BEGIN + ' / ' + ICONS_END + ' 标记行');
+}
 
-const indent = (clientLines[beginIndex].match(/^[ \t]*/) || [''])[0];
-const indentModel = modelLines.map((line) => (line.length > 0 ? indent + line : line));
+const indentOf = (line) => (line.match(/^[ \t]*/) || [''])[0];
+const indentLines = (lines, indent) => lines.map((line) => (line.length > 0 ? indent + line : line));
 
-const currentBody = clientLines.slice(beginIndex + 1, endIndex);
-const inSync =
-  currentBody.length === indentModel.length && currentBody.every((line, i) => line === indentModel[i]);
+const modelIndent = indentOf(clientLines[beginIndex]);
+const iconsIndent = indentOf(clientLines[iconsBeginIndex]);
+const wantModel = indentLines(modelLines, modelIndent);
+const wantIcons = indentLines(iconLines, iconsIndent);
+
+const haveModel = clientLines.slice(beginIndex + 1, endIndex);
+const haveIcons = clientLines.slice(iconsBeginIndex + 1, iconsEndIndex);
+
+const same = (a, b) => a.length === b.length && a.every((line, i) => line === b[i]);
+const modelInSync = same(haveModel, wantModel);
+const iconsInSync = same(haveIcons, wantIcons);
 
 const checkOnly = process.argv.includes('--check');
 
-if (inSync) {
-  console.log('[build-client] 内联块已是最新（' + modelLines.length + ' 行模型，无需改动）');
+if (modelInSync && iconsInSync) {
+  console.log(
+    '[build-client] 内联块已是最新（模型 ' +
+      modelLines.length +
+      ' 行、图标 ' +
+      iconLines.length +
+      ' 行，无需改动）',
+  );
   process.exit(0);
 }
 
 if (checkOnly) {
-  console.error('[build-client] 内联块与 zcode-model.js 不一致：请运行 node scripts/build-client.mjs');
+  if (!modelInSync) console.error('[build-client] 模型内联块与 zcode-model.js 不一致');
+  if (!iconsInSync) console.error('[build-client] 图标内联块与 dsh-icons.js 不一致');
+  console.error('[build-client] 请运行 node scripts/build-client.mjs');
   process.exit(1);
 }
 
 const nextLines = [
   ...clientLines.slice(0, beginIndex + 1),
-  ...indentModel,
-  ...clientLines.slice(endIndex),
+  ...wantModel,
+  ...clientLines.slice(endIndex, iconsBeginIndex + 1),
+  ...wantIcons,
+  ...clientLines.slice(iconsEndIndex),
 ];
-// 写回时统一用 LF（与 zcode-model.js 一致）；git 会按仓库设置处理行尾。
 writeFileSync(CLIENT_FILE, nextLines.join('\n') + '\n', 'utf8');
 console.log(
-  '[build-client] 已内联 ' + modelLines.length + ' 行模型（替换 ' + currentBody.length + ' 行）',
+  '[build-client] 已内联模型 ' +
+    modelLines.length +
+    ' 行' +
+    (modelInSync ? '' : '（替换 ' + haveModel.length + ' 行）') +
+    '、图标 ' +
+    iconLines.length +
+    ' 行' +
+    (iconsInSync ? '' : '（替换 ' + haveIcons.length + ' 行）'),
 );

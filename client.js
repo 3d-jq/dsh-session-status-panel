@@ -289,6 +289,106 @@ window.__ModuleLoader__.load({
     }
     // __ZCODE_MODEL_END__
 
+// __DSH_ICONS_BEGIN__
+/**
+ * 图标集 —— 从 DSH 宿主 `ui-primitives` 抄 path，**不 import 宿主包**。
+ *
+ * 为什么抄而不 import：`cordis-plugin-development/references/practices.md` 要求插件
+ * 不得 import `@deepseek-ai/dsh-client-ui-*`（它们随时可能变，也会让普通 JS 插件失去类型检查）。
+ * 图标是纯 path 数据，抄进来符合"复制 primitive 的 markup"，且零 import。
+ *
+ * 上游 `packages/client/ui-primitives/src/icons/index.tsx` 的规范：
+ *   viewBox="0 0 16 16"；描边字形 stroke="currentColor"、填充字形 fill="currentColor"；
+ *   ICON_REGULAR_STROKE = 1 / ICON_MEDIUM_STROKE = 1.3。
+ * 下面每个数组的元素形如 ['path', { d: '…', stroke: 'currentColor' }]，
+ * 由 createElement 逐个构建（**不使用 dangerouslySetInnerHTML**）。
+ *
+ * 命名对应 ZCode 面板各分区的图标语义（ZCode 用 lucide；这里换成宿主图标集）。
+ * 上游没有的名字都注明替换来源。
+ */
+
+/** 描边字形：每个 path 自带 stroke=currentColor，不依赖属性继承。 */
+const STROKED = {
+  // ZCode: TargetIcon → 上游 IconGoalOutline
+  goal: [
+    ['path', { d: 'M14.5001 8C14.5 9.28552 14.1188 10.5422 13.4045 11.611C12.6903 12.6799 11.6752 13.5129 10.4875 14.0049C9.29982 14.4968 7.99295 14.6255 6.73212 14.3747C5.4713 14.124 4.31314 13.505 3.4041 12.596C2.49514 11.687 1.87614 10.5288 1.62537 9.26798C1.37459 8.00716 1.50331 6.70028 1.99525 5.51261C2.48719 4.32494 3.32025 3.30981 4.3891 2.59557C5.45795 1.88134 6.71458 1.50008 8.0001 1.5', stroke: 'currentColor' }],
+    ['path', { d: 'M11.5 8C11.5001 8.69227 11.2948 9.36901 10.9102 9.94463C10.5257 10.5202 9.97901 10.9689 9.33944 11.2338C8.69986 11.4987 7.99609 11.5681 7.31712 11.433C6.63816 11.2979 6.01449 10.9645 5.52501 10.475C5.03548 9.98552 4.70209 9.36185 4.56702 8.68289C4.43195 8.00392 4.50127 7.30015 4.76619 6.66057C5.03112 6.021 5.47976 5.47436 6.05538 5.08978C6.631 4.70519 7.30774 4.49995 8.00001 4.5', stroke: 'currentColor' }],
+    ['path', { d: 'M8.00024 7.99976L11.2 4.80005', stroke: 'currentColor' }],
+    ['path', { d: 'M12.4719 5.62245C12.4246 5.66972 12.3569 5.69025 12.2913 5.67715L10.7814 5.37555C10.7022 5.35972 10.6402 5.29781 10.6244 5.2186L10.3228 3.70866C10.3097 3.6431 10.3302 3.57533 10.3775 3.52806L12.1826 1.723C12.2863 1.61929 12.4627 1.65879 12.5122 1.79684L12.9271 2.95225C12.9472 3.00847 12.9915 3.05272 13.0477 3.07291L14.2031 3.48774C14.3412 3.5373 14.3807 3.71368 14.277 3.81739L12.4719 5.62245Z', stroke: 'currentColor' }],
+  ],
+  // ZCode: ListChecksIcon → 上游 IconChecklistOutline
+  checklist: [
+    ['path', { d: 'M3.75 6.25C4.7165 6.25 5.5 5.4665 5.5 4.5C5.5 3.5335 4.7165 2.75 3.75 2.75C2.7835 2.75 2 3.5335 2 4.5C2 5.4665 2.7835 6.25 3.75 6.25Z', stroke: 'currentColor' }],
+    ['path', { d: 'M7.5 4.5H13.5', stroke: 'currentColor' }],
+    ['path', { d: 'M3.75 13.25C4.7165 13.25 5.5 12.4665 5.5 11.5C5.5 10.5335 4.7165 9.75 3.75 9.75C2.7835 9.75 2 10.5335 2 11.5C2 12.4665 2.7835 13.25 3.75 13.25Z', stroke: 'currentColor' }],
+    ['path', { d: 'M7.5 11.5H13.5', stroke: 'currentColor' }],
+  ],
+  // ZCode: SquareTerminalIcon → 上游无 terminal 名，取该图标集的 '>_' 提示符（IconApiOutline）
+  terminal: [
+    ['path', { d: 'M3 4L7 8L3 12', stroke: 'currentColor' }],
+    ['path', { d: 'M9 12H13', stroke: 'currentColor' }],
+  ],
+  // ZCode: BotIcon → 上游无 bot，取智能体字形（IconAgentPresetOutline）
+  agent: [
+    ['path', { d: 'M6.51867 12.3282C7.29816 12.6011 8.16475 12.6514 9.02269 12.4216C9.57879 12.2726 10.0784 12.0185 10.5087 11.6888C10.7819 12.0555 11.1606 12.3304 11.5913 12.4805C10.9688 13.029 10.2149 13.4478 9.35911 13.6771C8.13946 14.0038 6.90632 13.8971 5.82126 13.4533C6.15821 13.1562 6.4021 12.7652 6.51867 12.3282ZM9.17629 2.89409C11.1101 3.34433 12.739 4.81872 13.2889 6.87043C13.4219 7.3665 13.4811 7.8649 13.4774 8.35466C13.0924 8.13213 12.6422 8.01837 12.1741 8.05276L12.1711 8.05257C12.1539 7.77199 12.109 7.48889 12.0334 7.20684C11.6363 5.72533 10.5048 4.6372 9.13549 4.22844C9.25559 3.87667 9.29214 3.49087 9.22309 3.09892C9.2108 3.02922 9.19451 2.96108 9.17629 2.89409ZM4.7311 3.89107L4.78302 4.11879C4.87648 4.4488 5.04146 4.74263 5.25579 4.98896C3.98078 6.01355 3.35848 7.72904 3.8089 9.41059C3.81828 9.44559 3.82866 9.48025 3.83885 9.51479C3.38217 9.61268 2.98548 9.84137 2.68107 10.1556C2.63414 10.022 2.5897 9.88632 2.55244 9.74726C1.93301 7.43489 2.86717 5.07173 4.71504 3.76697L4.7311 3.89107Z', fill: 'currentColor' }],
+    ['path', { d: 'M7.99136 5.28105C8.87501 5.28105 9.59136 4.56471 9.59136 3.68105C9.59136 2.7974 8.87501 2.08105 7.99136 2.08105C7.1077 2.08105 6.39136 2.7974 6.39136 3.68105C6.39136 4.56471 7.1077 5.28105 7.99136 5.28105Z', stroke: 'currentColor' }],
+    ['path', { d: 'M3.94009 12.9417C4.82374 12.9417 5.54009 12.2254 5.54009 11.3417C5.54009 10.458 4.82374 9.7417 3.94009 9.7417C3.05643 9.7417 2.34009 10.458 2.34009 11.3417C2.34009 12.2254 3.05643 12.9417 3.94009 12.9417Z', stroke: 'currentColor' }],
+    ['path', { d: 'M12.0851 12.9417C12.9688 12.9417 13.6851 12.2254 13.6851 11.3417C13.6851 10.458 12.9688 9.7417 12.0851 9.7417C11.2015 9.7417 10.4851 10.458 10.4851 11.3417C10.4851 12.2254 11.2015 12.9417 12.0851 12.9417Z', stroke: 'currentColor' }],
+  ],
+  // ZCode: FileDiffIcon → 上游无 diff 名，取并排双文档（IconCompareSplitOutline）
+  diff: [
+    ['path', { d: 'M6 1.5H2.5C1.94772 1.5 1.5 1.94772 1.5 2.5V13.5C1.5 14.0523 1.94772 14.5 2.5 14.5H6C6.55228 14.5 7 14.0523 7 13.5V2.5C7 1.94772 6.55228 1.5 6 1.5Z', stroke: 'currentColor' }],
+    ['path', { d: 'M13.5 1.5H10C9.44772 1.5 9 1.94772 9 2.5V13.5C9 14.0523 9.44772 14.5 10 14.5H13.5C14.0523 14.5 14.5 14.0523 14.5 13.5V2.5C14.5 1.94772 14.0523 1.5 13.5 1.5Z', stroke: 'currentColor' }],
+  ],
+  // ZCode: ChevronRightIcon / ChevronDownIcon / ChevronLeftIcon / ChevronUpIcon → 上游同名
+  chevronRight: [['path', { d: 'M6 12L9.29289 8.70711C9.68342 8.31658 9.68342 7.68342 9.29289 7.29289L6 4', stroke: 'currentColor' }]],
+  chevronDown: [['path', { d: 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6', stroke: 'currentColor' }]],
+  chevronLeft: [['path', { d: 'M10 4L6.70711 7.29289C6.31658 7.68342 6.31658 8.31658 6.70711 8.70711L10 12', stroke: 'currentColor' }]],
+  chevronUp: [['path', { d: 'M12 10L8.70711 6.70711C8.31658 6.31658 7.68342 6.31658 7.29289 6.70711L4 10', stroke: 'currentColor' }]],
+  // ZCode: RefreshCwIcon（git 分区刷新）→ 上游 IconRefreshOutline
+  refresh: [
+    ['path', { d: 'M14.5001 8C14.5 9.28552 14.1188 10.5422 13.4045 11.611C12.6903 12.6799 11.6752 13.5129 10.4875 14.0049C9.29982 14.4968 7.99295 14.6255 6.73212 14.3747C5.4713 14.124 4.31314 13.505 3.4041 12.596C2.49514 11.687 1.87614 10.5288 1.62537 9.26798C1.37459 8.00716 1.50331 6.70028 1.99525 5.51261C2.48719 4.32494 3.32025 3.30981 4.3891 2.59557C5.45795 1.88134 6.71458 1.50008 8.0001 1.5C9.9001 1.5 11.7001 2.3 13.0001 3.6L14.5001 5.1', stroke: 'currentColor' }],
+    ['path', { d: 'M14.4999 1.5V5.1H10.8999', stroke: 'currentColor' }],
+  ],
+  // ZCode: PauseIcon（目标暂停）→ 上游 IconPauseOutline（圆圈内双竖线）
+  pause: [
+    ['path', { d: 'M8 14.5C11.5899 14.5 14.5 11.5899 14.5 8C14.5 4.41015 11.5899 1.5 8 1.5C4.41015 1.5 1.5 4.41015 1.5 8C1.5 11.5899 4.41015 14.5 8 14.5Z', stroke: 'currentColor' }],
+    ['path', { d: 'M6.5 5V11', stroke: 'currentColor' }],
+    ['path', { d: 'M9.5 5V11', stroke: 'currentColor' }],
+  ],
+  // ZCode: PlayIcon（目标继续）→ 上游 IconPlayOutline（圆圈内三角）
+  play: [
+    ['path', { d: 'M8 14.5C11.5899 14.5 14.5 11.5899 14.5 8C14.5 4.41015 11.5899 1.5 8 1.5C4.41015 1.5 1.5 4.41015 1.5 8C1.5 11.5899 4.41015 14.5 8 14.5Z', stroke: 'currentColor' }],
+    ['path', { d: 'M10.3329 7.91346C10.3996 7.95195 10.3996 8.04818 10.3329 8.08667L6.78304 10.1362C6.71638 10.1747 6.63304 10.1266 6.63304 10.0496L6.63304 5.95055C6.63304 5.87357 6.71638 5.82546 6.78304 5.86395L10.3329 7.91346Z', stroke: 'currentColor' }],
+  ],
+  // ZCode: CircleIcon（待处理项）→ 上游没有裸圆，取 IconClockOutline 的圆
+  circle: [['path', { d: 'M8 14C11.3137 14 14 11.3137 14 8C14 4.68629 11.3137 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14Z', stroke: 'currentColor' }]],
+};
+
+/** 填充字形：fill=currentColor（描边宽度对其无效）。 */
+const FILLED = {
+  // ZCode: MoreHorizontalIcon（⋯）→ 上游 IconEllipsisOutline
+  ellipsis: [
+    ['path', { d: 'M3 9C3.55228 9 4 8.55228 4 8C4 7.44772 3.55228 7 3 7C2.44772 7 2 7.44772 2 8C2 8.55228 2.44772 9 3 9Z', fill: 'currentColor' }],
+    ['path', { d: 'M8 9C8.55228 9 9 8.55228 9 8C9 7.44772 8.55228 7 8 7C7.44772 7 7 7.44772 7 8C7 8.55228 7.44772 9 8 9Z', fill: 'currentColor' }],
+    ['path', { d: 'M13 9C13.5523 9 14 8.55228 14 8C14 7.44772 13.5523 7 13 7C12.4477 7 12 7.44772 12 8C12 8.55228 12.4477 9 13 9Z', fill: 'currentColor' }],
+  ],
+  // ZCode: SquareIcon（停止按钮）→ 上游 IconStopFill
+  stop: [
+    ['path', { d: 'M12.5 2.5H3.5C2.94772 2.5 2.5 2.94772 2.5 3.5V12.5C2.5 13.0523 2.94772 13.5 3.5 13.5H12.5C13.0523 13.5 13.5 13.0523 13.5 12.5V3.5C13.5 2.94772 13.0523 2.5 12.5 2.5Z', fill: 'currentColor' }],
+  ],
+  // ZCode: CheckIcon → 上游 IconCheckCircleOutline（名字带 Outline 但几何是填充）
+  check: [
+    ['path', { d: 'M12.5303 6.53027L8.80273 10.2578C8.54967 10.5109 8.31796 10.7439 8.10645 10.9141C7.88375 11.0932 7.616 11.2602 7.27344 11.3145C7.09229 11.3431 6.90771 11.3431 6.72656 11.3145C6.384 11.2602 6.11625 11.0932 5.89355 10.9141C5.68204 10.7439 5.45033 10.5109 5.19727 10.2578L3.46973 8.53027L4.53027 7.46973L6.25781 9.19727C6.53457 9.47402 6.70036 9.63859 6.83398 9.74609C6.95637 9.84453 6.98241 9.83644 6.96094 9.83301C6.98679 9.83709 7.01321 9.83709 7.03906 9.83301C7.01759 9.83644 7.04363 9.84453 7.16602 9.74609C7.29964 9.63859 7.46543 9.47402 7.74219 9.19727L11.4697 5.46973L12.5303 6.53027Z', fill: 'currentColor' }],
+    ['path', { d: 'M14.5996 8C14.5996 4.35492 11.6451 1.40039 8 1.40039C4.35492 1.40039 1.40039 4.35492 1.40039 8C1.40039 11.6451 4.35492 14.5996 8 14.5996C11.6451 14.5996 14.5996 11.6451 14.5996 8ZM15.9004 8C15.9004 12.363 12.363 15.9004 8 15.9004C3.63695 15.9004 0.0996094 12.363 0.0996094 8C0.0996094 3.63695 3.63695 0.0996094 8 0.0996094C12.363 0.0996094 15.9004 3.63695 15.9004 8Z', fill: 'currentColor' }],
+  ],
+  // ZCode: ArrowRightIcon（当前待办标记）→ 上游无箭头，取实心右三角（IconTriangleRightFill）
+  arrowRight: [
+    ['path', { d: 'M5.5 4.5C5.5 4.40714 5.52586 4.31612 5.57467 4.23713C5.62349 4.15815 5.69334 4.09431 5.77639 4.05279C5.85945 4.01126 5.95242 3.99368 6.0449 4.00202C6.13738 4.01036 6.22572 4.04429 6.3 4.1L10.967 7.6C11.0291 7.64657 11.0795 7.70697 11.1142 7.77639C11.1489 7.84582 11.167 7.92238 11.167 8C11.167 8.07762 11.1489 8.15418 11.1142 8.22361C11.0795 8.29303 11.0291 8.35343 10.967 8.4L6.3 11.9C6.22572 11.9557 6.13738 11.9896 6.0449 11.998C5.95242 12.0063 5.85945 11.9887 5.77639 11.9472C5.69334 11.9057 5.62349 11.8419 5.57467 11.7629C5.52586 11.6839 5.5 11.5929 5.5 11.5V4.5Z', fill: 'currentColor' }],
+  ],
+};
+// __DSH_ICONS_END__
+
     // ------------------------------------------------------------ 文案字典
     /** locale 命名空间（本包自有）。 */
     const NS = 'sessionStatusPanel';
@@ -503,91 +603,60 @@ window.__ModuleLoader__.load({
     const SECTION_SCROLL_CAP = { goal: '12rem', plan: '20rem', background: '12rem', agents: '12rem' };
 
     // ------------------------------------------------------------------ 图标
-    function glyph(children) {
-      return function Glyph(props) {
+    /*
+     * 图标来自 dsh-icons.js（由 build-client.mjs 内联）：path 逐字抄自 DSH 宿主
+     * ' + "'" + 'ui-primitives/src/icons/index.tsx' + "'" + '，viewBox 0 0 16 16、
+     * currentColor、描边 1px —— 与宿主同一套网格与重量。
+     * （早先这里 8 个图标是手搓的 24 网格 path，粗细与比例都不一致。）
+     *
+     * 逐 path 用 createElement 构建（不用 dangerouslySetInnerHTML）：
+     * 每个 path 自带 stroke/fill，不依赖 <svg> 的属性继承，
+     * 这样与上游写法一致，也不把字符串当 HTML 注入。
+     */
+    function iconFrom(spec) {
+      return function DshIcon(props) {
         const size = (props && props.size) || 16;
+        const nodes = [];
+        for (let i = 0; i < spec.length; i += 1) {
+          const tag = spec[i][0];
+          const attrs = Object.assign({}, spec[i][1], { key: 'p' + i });
+          nodes.push(h(tag, attrs));
+        }
         return h(
           'svg',
           {
             width: size,
             height: size,
-            viewBox: '0 0 24 24',
+            viewBox: '0 0 16 16',
             fill: 'none',
-            stroke: 'currentColor',
-            strokeWidth: 1.8,
-            strokeLinecap: 'round',
-            strokeLinejoin: 'round',
             'aria-hidden': 'true',
             style: { display: 'block', flex: 'none' },
           },
-          children,
+          nodes,
         );
       };
     }
-    const GoalIcon = glyph([
-      h('circle', { key: 'o', cx: 12, cy: 12, r: 9 }),
-      h('circle', { key: 'm', cx: 12, cy: 12, r: 4 }),
-    ]);
-    const ListIcon = glyph([
-      h('path', { key: 'l1', d: 'M4 6h10' }),
-      h('path', { key: 'l2', d: 'M4 12h10' }),
-      h('path', { key: 'l3', d: 'M4 18h10' }),
-      h('path', { key: 'c', d: 'M18 17l2 2 3-3' }),
-    ]);
-    const ArrowRightIcon = glyph([
-      h('path', { key: 'a', d: 'M5 12h13' }),
-      h('path', { key: 'b', d: 'M13 7l5 5-5 5' }),
-    ]);
-    const CheckIcon = glyph([h('path', { key: 'c', d: 'M20 6L9 17l-5-5' })]);
-    const CircleIcon = glyph([h('circle', { key: 'c', cx: 12, cy: 12, r: 8 })]);
-    const MaximizeIcon = glyph([
-      h('path', { key: '1', d: 'M9 4H5a1 1 0 0 0-1 1v4' }),
-      h('path', { key: '2', d: 'M15 4h4a1 1 0 0 1 1 1v4' }),
-      h('path', { key: '3', d: 'M15 20h4a1 1 0 0 0 1-1v-4' }),
-      h('path', { key: '4', d: 'M9 20H5a1 1 0 0 1-1-1v-4' }),
-    ]);
-    const MinimizeIcon = glyph([
-      h('path', { key: '1', d: 'M9 4v4a1 1 0 0 1-1 1H4' }),
-      h('path', { key: '2', d: 'M15 4v4a1 1 0 0 0 1 1h4' }),
-      h('path', { key: '3', d: 'M15 20v-4a1 1 0 0 1 1-1h4' }),
-      h('path', { key: '4', d: 'M9 20v-4a1 1 0 0 0-1-1H4' }),
-    ]);
-    const ChevronDownIcon = glyph([h('path', { key: 'c', d: 'M6 9l6 6 6-6' })]);
-    const ChevronLeftIcon = glyph([h('path', { key: 'c', d: 'M15 6l-6 6 6 6' })]);
-    const ChevronRightIcon = glyph([h('path', { key: 'c', d: 'M9 6l6 6-6 6' })]);
-    const TerminalIcon = glyph([
-      h('rect', { key: 'r', x: 3, y: 4, width: 18, height: 16, rx: 2 }),
-      h('path', { key: 'p', d: 'M7 9l3 3-3 3' }),
-      h('path', { key: 'l', d: 'M13 15h4' }),
-    ]);
-    const BotIcon = glyph([
-      h('rect', { key: 'r', x: 4, y: 8, width: 16, height: 11, rx: 3 }),
-      h('path', { key: 'a', d: 'M12 4v4' }),
-      h('circle', { key: 'c', cx: 12, cy: 3, r: 1 }),
-      h('circle', { key: 'e1', cx: 9.5, cy: 13.5, r: 1 }),
-      h('circle', { key: 'e2', cx: 14.5, cy: 13.5, r: 1 }),
-    ]);
-    /** 停止：实心方块（与 ZCode 的 SquareIcon 语义一致）。 */
-    const StopIcon = glyph([h('rect', { key: 'r', x: 6, y: 6, width: 12, height: 12, rx: 2, fill: 'currentColor', stroke: 'none' })]);
-    /** 展开策略菜单的三点。 */
-    const EllipsisIcon = glyph([
-      h('circle', { key: '1', cx: 5, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
-      h('circle', { key: '2', cx: 12, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
-      h('circle', { key: '3', cx: 19, cy: 12, r: 1.4, fill: 'currentColor', stroke: 'none' }),
-    ]);
-    /** 工作流：分支节点。 */
-    const WorkflowIcon = glyph([
-      h('rect', { key: 'a', x: 3, y: 3, width: 6, height: 6, rx: 1.5 }),
-      h('rect', { key: 'b', x: 15, y: 15, width: 6, height: 6, rx: 1.5 }),
-      h('rect', { key: 'c', x: 3, y: 15, width: 6, height: 6, rx: 1.5 }),
-      h('path', { key: 'l', d: 'M6 9v6' }),
-      h('path', { key: 'm', d: 'M9 6h6a3 3 0 0 1 3 3v6' }),
-    ]);
-    const PauseIcon = glyph([
-      h('path', { key: '1', d: 'M9 5v14' }),
-      h('path', { key: '2', d: 'M15 5v14' }),
-    ]);
-    const PlayIcon = glyph([h('path', { key: 'p', d: 'M7 5l12 7-12 7z' })]);
+
+    const GoalIcon = iconFrom(STROKED.goal);
+    const ListIcon = iconFrom(STROKED.checklist);
+    const TerminalIcon = iconFrom(STROKED.terminal);
+    const BotIcon = iconFrom(STROKED.agent);
+    const WorkflowIcon = iconFrom(STROKED.agent);
+    const RefreshIcon = iconFrom(STROKED.refresh);
+    const PauseIcon = iconFrom(STROKED.pause);
+    const PlayIcon = iconFrom(STROKED.play);
+    const CircleIcon = iconFrom(STROKED.circle);
+    const ChevronDownIcon = iconFrom(STROKED.chevronDown);
+    const ChevronLeftIcon = iconFrom(STROKED.chevronLeft);
+    const ChevronRightIcon = iconFrom(STROKED.chevronRight);
+    const EllipsisIcon = iconFrom(FILLED.ellipsis);
+    const StopIcon = iconFrom(FILLED.stop);
+    const CheckIcon = iconFrom(FILLED.check);
+    const ArrowRightIcon = iconFrom(FILLED.arrowRight);
+    // 收起 / 展开这一对：ZCode 用 Minimize2 / Maximize2，宿主没有对应字形，
+    // 这里用上 / 下 chevron（互为反义，与折叠箭头同族）。
+    const MinimizeIcon = iconFrom(STROKED.chevronUp);
+    const MaximizeIcon = iconFrom(STROKED.chevronDown);
 
     // -------------------------------------------------------------- 数据派生
     /**
@@ -2559,3 +2628,5 @@ window.__ModuleLoader__.load({
     };
   },
 });
+
+
