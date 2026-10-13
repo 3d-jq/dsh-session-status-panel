@@ -21,12 +21,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const MODEL_FILE = resolve(root, 'zcode-model.js');
 const ICONS_FILE = resolve(root, 'dsh-icons.js');
+const STYLES_FILE = resolve(root, 'panel-styles.js');
 const CLIENT_FILE = resolve(root, 'client.js');
 
 const BEGIN_TEXT = '// __ZCODE_MODEL_BEGIN__';
 const END_TEXT = '// __ZCODE_MODEL_END__';
 const ICONS_BEGIN = '// __DSH_ICONS_BEGIN__';
 const ICONS_END = '// __DSH_ICONS_END__';
+const STYLES_BEGIN = '// __DSH_STYLES_BEGIN__';
+const STYLES_END = '// __DSH_STYLES_END__';
 
 const isMarker = (line, text) => line.trim() === text;
 
@@ -40,19 +43,30 @@ const iconLines = normalizeNewlines(readFileSync(ICONS_FILE, 'utf8'))
   .replace(/^export /gm, '')
   .replace(/\s+$/, '')
   .split('\n');
+// 样式表同理；模板字符串里的 CSS 保持原样。
+const styleLines = normalizeNewlines(readFileSync(STYLES_FILE, 'utf8'))
+  .replace(/^export /gm, '')
+  .replace(/\s+$/, '')
+  .split('\n');
 
 const clientText = normalizeNewlines(readFileSync(CLIENT_FILE, 'utf8'));
 const clientLines = clientText.split('\n');
 
-const beginIndex = clientLines.findIndex((line) => isMarker(line, BEGIN_TEXT));
-const endIndex = clientLines.findIndex((line) => isMarker(line, END_TEXT));
+const find = (text) => clientLines.findIndex((line) => isMarker(line, text));
+const beginIndex = find(BEGIN_TEXT);
+const endIndex = find(END_TEXT);
+const iconsBeginIndex = find(ICONS_BEGIN);
+const iconsEndIndex = find(ICONS_END);
+const stylesBeginIndex = find(STYLES_BEGIN);
+const stylesEndIndex = find(STYLES_END);
 if (beginIndex < 0 || endIndex < 0 || endIndex < beginIndex) {
   throw new Error('client.js 里找不到成对的 ' + BEGIN_TEXT + ' / ' + END_TEXT + ' 标记行');
 }
-const iconsBeginIndex = clientLines.findIndex((line) => isMarker(line, ICONS_BEGIN));
-const iconsEndIndex = clientLines.findIndex((line) => isMarker(line, ICONS_END));
 if (iconsBeginIndex < 0 || iconsEndIndex < 0 || iconsEndIndex < iconsBeginIndex) {
   throw new Error('client.js 里找不到成对的 ' + ICONS_BEGIN + ' / ' + ICONS_END + ' 标记行');
+}
+if (stylesBeginIndex < 0 || stylesEndIndex < 0 || stylesEndIndex < stylesBeginIndex) {
+  throw new Error('client.js 里找不到成对的 ' + STYLES_BEGIN + ' / ' + STYLES_END + ' 标记行');
 }
 
 const indentOf = (line) => (line.match(/^[ \t]*/) || [''])[0];
@@ -60,24 +74,30 @@ const indentLines = (lines, indent) => lines.map((line) => (line.length > 0 ? in
 
 const modelIndent = indentOf(clientLines[beginIndex]);
 const iconsIndent = indentOf(clientLines[iconsBeginIndex]);
+const stylesIndent = indentOf(clientLines[stylesBeginIndex]);
 const wantModel = indentLines(modelLines, modelIndent);
 const wantIcons = indentLines(iconLines, iconsIndent);
+const wantStyles = indentLines(styleLines, stylesIndent);
 
 const haveModel = clientLines.slice(beginIndex + 1, endIndex);
 const haveIcons = clientLines.slice(iconsBeginIndex + 1, iconsEndIndex);
+const haveStyles = clientLines.slice(stylesBeginIndex + 1, stylesEndIndex);
 
 const same = (a, b) => a.length === b.length && a.every((line, i) => line === b[i]);
 const modelInSync = same(haveModel, wantModel);
 const iconsInSync = same(haveIcons, wantIcons);
+const stylesInSync = same(haveStyles, wantStyles);
 
 const checkOnly = process.argv.includes('--check');
 
-if (modelInSync && iconsInSync) {
+if (modelInSync && iconsInSync && stylesInSync) {
   console.log(
     '[build-client] 内联块已是最新（模型 ' +
       modelLines.length +
       ' 行、图标 ' +
       iconLines.length +
+      ' 行、样式 ' +
+      styleLines.length +
       ' 行，无需改动）',
   );
   process.exit(0);
@@ -86,6 +106,7 @@ if (modelInSync && iconsInSync) {
 if (checkOnly) {
   if (!modelInSync) console.error('[build-client] 模型内联块与 zcode-model.js 不一致');
   if (!iconsInSync) console.error('[build-client] 图标内联块与 dsh-icons.js 不一致');
+  if (!stylesInSync) console.error('[build-client] 样式内联块与 panel-styles.js 不一致');
   console.error('[build-client] 请运行 node scripts/build-client.mjs');
   process.exit(1);
 }
@@ -95,16 +116,22 @@ const nextLines = [
   ...wantModel,
   ...clientLines.slice(endIndex, iconsBeginIndex + 1),
   ...wantIcons,
-  ...clientLines.slice(iconsEndIndex),
+  ...clientLines.slice(iconsEndIndex, stylesBeginIndex + 1),
+  ...wantStyles,
+  ...clientLines.slice(stylesEndIndex),
 ];
 writeFileSync(CLIENT_FILE, nextLines.join('\n') + '\n', 'utf8');
 console.log(
-  '[build-client] 已内联模型 ' +
+  '[build-client] 已内联 模型 ' +
     modelLines.length +
     ' 行' +
-    (modelInSync ? '' : '（替换 ' + haveModel.length + ' 行）') +
+    (modelInSync ? '' : '（替换 ' + haveModel.length + '）') +
     '、图标 ' +
     iconLines.length +
     ' 行' +
-    (iconsInSync ? '' : '（替换 ' + haveIcons.length + ' 行）'),
+    (iconsInSync ? '' : '（替换 ' + haveIcons.length + '）') +
+    '、样式 ' +
+    styleLines.length +
+    ' 行' +
+    (stylesInSync ? '' : '（替换 ' + haveStyles.length + '）'),
 );
