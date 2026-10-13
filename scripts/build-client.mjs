@@ -27,9 +27,13 @@ const END_TEXT = '// __ZCODE_MODEL_END__';
 
 const isMarker = (line, text) => line.trim() === text;
 
-const modelLines = readFileSync(MODEL_FILE, 'utf8').replace(/\s+$/, '').split('\n');
-const clientText = readFileSync(CLIENT_FILE, 'utf8');
-const hadFinalNewline = clientText.endsWith('\n');
+const modelLines = readFileSync(MODEL_FILE, 'utf8')
+  // 行尾规范化：Windows 检出可能是 CRLF，而 zcode-model.js 可能是 LF。
+  // 不统一就会让"内联块 vs 源文件"的比较永远不一致（每个 \r 都算差异）。
+  .replace(/\r\n?/g, '\n')
+  .replace(/\s+$/, '')
+  .split('\n');
+const clientText = readFileSync(CLIENT_FILE, 'utf8').replace(/\r\n?/g, '\n');
 const clientLines = clientText.split('\n');
 
 const beginIndex = clientLines.findIndex((line) => isMarker(line, BEGIN_TEXT));
@@ -62,7 +66,8 @@ const nextLines = [
   ...indentModel,
   ...clientLines.slice(endIndex),
 ];
-writeFileSync(CLIENT_FILE, nextLines.join('\n') + (hadFinalNewline ? '' : ''), 'utf8');
+// 写回时统一用 LF（与 zcode-model.js 一致）；git 会按仓库设置处理行尾。
+writeFileSync(CLIENT_FILE, nextLines.join('\n') + '\n', 'utf8');
 console.log(
   '[build-client] 已内联 ' + modelLines.length + ' 行模型（替换 ' + currentBody.length + ' 行）',
 );
